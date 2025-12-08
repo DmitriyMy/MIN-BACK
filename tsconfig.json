@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "outDir": "dist",
+    "target": "ES2020",
+    "module": "CommonJS",
+    "sourceMap": true,
+    "incremental": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "strictNullChecks": true,
+    "resolveJsonModule": true,
+    "strictBindCallApply": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "noFallthroughCasesInSwitch": false,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": false,
+    "baseUrl": "./",
+    "paths": {
+      "@app/constants/*": ["libs/constants/src/*"],
+      "@app/dto": ["libs/dto/src"],
+      "@app/dto/*": ["libs/dto/src/*"],
+      "@app/entitiesPG": ["libs/entitiesPG/src"],
+      "@app/entitiesPG/*": ["libs/entitiesPG/src/*"],
+      "@app/errors": ["libs/errors/src"],
+      "@app/errors/*": ["libs/errors/src/*"],
+      "@app/infrastructure": ["libs/infrastructure/src"],
+      "@app/infrastructure/*": ["libs/infrastructure/src/*"],
+      "@app/types/*": ["libs/types/src/*"],
+      "@app/utils/*": ["libs/utils/src/*"]
+    }
+  }
+}
