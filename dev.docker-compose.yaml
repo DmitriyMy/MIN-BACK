@@ -14,7 +14,7 @@ services:
       context: .
       args:
         - SERVICE_NAME=auth
-    image: docker.freefrog.tech/enot/auth:dev
+    image: docker.freefrog.tech/min/auth:dev
     restart: always
     ports:
       - 3001:3000
@@ -35,7 +35,7 @@ services:
       context: .
       args:
         - SERVICE_NAME=gate
-    image: docker.freefrog.tech/enot/gate:dev
+    image: docker.freefrog.tech/min/gate:dev
     restart: always
     depends_on:
       - nats
@@ -56,7 +56,7 @@ services:
       context: .
       args:
         - SERVICE_NAME=user
-    image: docker.freefrog.tech/enot/user:dev
+    image: docker.freefrog.tech/min/user:dev
     restart: always
     ports:
       - 3003:3000
@@ -78,10 +78,32 @@ services:
       context: .
       args:
         - SERVICE_NAME=message
-    image: docker.freefrog.tech/enot/message:dev
+    image: docker.freefrog.tech/min/message:dev
     restart: always
     ports:
       - 3003:3000
     depends_on:
       - nats
       - postgres
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    env_file:
+      - example.env
+    environment:
+      POSTGRES_DB: ${PG_DB_NAME}
+      POSTGRES_USER: ${PG_DB_USER}
+      POSTGRES_PASSWORD: ${PG_DB_PASSWORD}
+    command: [ "postgres", "-c", "log_statement=all" ]
+    ports:
+      - '${PG_DB_PORT}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  nats:
+    image: nats:2.10.10
+    ports:
+      - '4222:4222'
+      - '6222:6222'
+      - '8222:8222'
