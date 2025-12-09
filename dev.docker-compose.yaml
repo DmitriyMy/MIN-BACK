@@ -1,0 +1,87 @@
+version: '3.9'
+services:
+  auth:
+    container_name: auth
+    env_file:
+      - example.env
+    environment:
+      PG_DB_HOST: ${PG_DB_HOST}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+    build:
+      context: .
+      args:
+        - SERVICE_NAME=auth
+    image: docker.freefrog.tech/enot/auth:dev
+    restart: always
+    ports:
+      - 3001:3000
+    depends_on:
+      - nats
+      - postgres
+
+  gate:
+    container_name: gate
+    env_file:
+      - example.env
+    environment:
+      GATE_APP_HOST: ${GATE_APP_HOST}
+      GATE_APP_PORT: ${GATE_APP_PORT}
+      NODE_ENV: ${NODE_ENV}
+      RMQ_URL: ${RMQ_URL}
+    build:
+      context: .
+      args:
+        - SERVICE_NAME=gate
+    image: docker.freefrog.tech/enot/gate:dev
+    restart: always
+    depends_on:
+      - nats
+    ports:
+      - 3002:3000
+
+  user:
+    container_name: user
+    env_file:
+      - example.env
+    environment:
+      PG_DB_HOST: ${PG_DB_HOST}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+    build:
+      context: .
+      args:
+        - SERVICE_NAME=user
+    image: docker.freefrog.tech/enot/user:dev
+    restart: always
+    ports:
+      - 3003:3000
+    depends_on:
+      - nats
+      - postgres
+
+  message:
+    container_name: message
+    env_file:
+      - example.env
+    environment:
+      PG_DB_HOST: ${PG_DB_HOST}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+    build:
+      context: .
+      args:
+        - SERVICE_NAME=message
+    image: docker.freefrog.tech/enot/message:dev
+    restart: always
+    ports:
+      - 3003:3000
+    depends_on:
+      - nats
+      - postgres

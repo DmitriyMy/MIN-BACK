@@ -1,0 +1,68 @@
+version: '3.9'
+services:
+  auth:
+    image: docker.freefrog.tech/enot/auth:dev
+    env_file:
+      - dev.env
+    environment:
+      PG_DB_HOST: ${PG_DB_HOST}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      SERVICE_NAME: auth
+    volumes:
+      - ./dev.env:/app/dev.env
+    restart: always
+    ports:
+      - 3001:3000
+
+  gate:
+    image: docker.freefrog.tech/enot/gate:dev
+    env_file:
+      - dev.env
+    environment:
+      GATE_APP_HOST: ${GATE_APP_HOST}
+      GATE_APP_PORT: ${GATE_APP_PORT}
+      NODE_ENV: ${NODE_ENV}22
+      RMQ_URL: ${RMQ_URL}
+      SERVICE_NAME: gate
+    volumes:
+      - ./dev.env:/app/dev.env
+    restart: always
+    ports:
+      - 3002:3000
+
+  user:
+    image: docker.freefrog.tech/enot/user:dev
+    env_file:
+      - dev.env
+    environment:
+      PG_DB_HOST: ${PG_DB_HOST}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      SERVICE_NAME: user
+    volumes:
+      - ./dev.env:/app/dev.env
+    restart: always
+    ports:
+      - 3003:3000
+
+  message:
+    image: docker.freefrog.tech/enot/message:dev
+    env_file:
+      - dev.env
+    environment:
+      PG_DB_HOST: ${PG_DB_HOST}
+      PG_DB_PORT: ${PG_DB_PORT}
+      PG_DB_NAME: ${PG_DB_NAME}
+      PG_DB_USER: ${PG_DB_USER}
+      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      SERVICE_NAME: message
+    volumes:
+      - ./dev.env:/app/dev.env
+    restart: always
+    ports:
+      - 3003:3000
