@@ -65,4 +65,4 @@ services:
       - ./dev.env:/app/dev.env
     restart: always
     ports:
-      - 3003:3000
+      - 3004:3000

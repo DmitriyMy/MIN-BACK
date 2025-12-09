@@ -81,7 +81,7 @@ services:
     image: docker.freefrog.tech/min/message:dev
     restart: always
     ports:
-      - 3003:3000
+      - 3004:3000
     depends_on:
       - nats
       - postgres
