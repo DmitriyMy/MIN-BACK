@@ -1,4 +1,3 @@
-
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
 
 export enum ChatType {
