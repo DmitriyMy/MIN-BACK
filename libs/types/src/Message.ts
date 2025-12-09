@@ -15,6 +15,5 @@ export interface IMessageDB {
     senderId: senderId
     text: string
     status: messageStatus
-    phone: string
     createdAt: Date
 }

@@ -1,4 +1,4 @@
-export const USER_QUEUE = 'message'
+export const MESSAGE_QUEUE = 'message'
 
 export enum messageStatus {
     sent = 'sent',

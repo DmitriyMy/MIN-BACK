@@ -22,7 +22,7 @@ export class Messages extends BaseEntity implements IMessageDB {
     public text: string
 
     @Column({
-        type: 'enum',
+        type: 'varchar',
         nullable: false,
         default: messageStatus.sent,
     })
