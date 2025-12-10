@@ -2,18 +2,18 @@ import { messageStatus } from '@app/constants/message'
 
 import { UserId } from '@app/types/User'
 
-export type chatId = string
-export type id = string
-export type senderId = UserId
+export type ChatId = string
+export type MessageId = string
+export type SenderId = UserId
 /**
  * Entities
  */
 
 export interface IMessageDB {
-    id: id
-    chatId: chatId
-    senderId: senderId
-    text: string
-    status: messageStatus
-    createdAt: Date
+  id: MessageId
+  chatId: ChatId
+  senderId: SenderId
+  text: string
+  status: messageStatus
+  createdAt: Date
 }
