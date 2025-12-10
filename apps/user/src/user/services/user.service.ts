@@ -5,12 +5,12 @@ import { instanceToPlain, plainToInstance } from 'class-transformer'
 import { Repository } from 'typeorm'
 
 import { User } from '@app/entitiesPG'
+import { userError } from '@app/errors'
 import { ServiceResponse } from '@app/types/Service'
 import { IUserDB, SingleUserResponse } from '@app/types/User'
 
-import * as DTO from '../dto'
 import { dataSourceName } from '../../config/postgresql.config'
-import { userError } from '@app/errors'
+import * as DTO from '../dto'
 
 @Injectable()
 export class UserService {
@@ -57,7 +57,7 @@ export class UserService {
     const data = await this.userRepository.update({ userId }, user)
     this.logger.debug({ '[updateExpert]': { data } })
 
-    const success = data.affected! > 0 ? true : false
+    const success = data.affected! > 0
     if (!success) {
       return userError.USER_UPDATE_ERROR
     }

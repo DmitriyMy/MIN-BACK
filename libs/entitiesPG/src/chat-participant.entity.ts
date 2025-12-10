@@ -1,5 +1,6 @@
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
-import { IChatParticipantDB,ChatID,UserID } from '@app/types/ChatParticipant'
+import { ChatID, IChatParticipantDB, UserID } from '@app/types/ChatParticipant'
+
 @Entity('chat-participant')
 export class ChatParticipant extends BaseEntity implements IChatParticipantDB {
   @PrimaryGeneratedColumn('uuid')

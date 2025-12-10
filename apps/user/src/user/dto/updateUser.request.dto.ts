@@ -1,6 +1,6 @@
+import { IsOptional, IsString, IsUUID } from 'class-validator'
 import { IUpdateUserRequest, UserId } from '@app/types/User'
 import { IsUserPassword } from '@app/utils/validation-decorators'
-import { IsOptional, IsString, IsUUID } from 'class-validator'
 
 export class UpdateUserRequestDto implements IUpdateUserRequest {
   @IsUUID()

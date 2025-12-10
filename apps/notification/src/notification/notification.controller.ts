@@ -1,11 +1,11 @@
 import { Controller, Inject, Logger } from '@nestjs/common'
 import { MessagePattern, Payload } from '@nestjs/microservices'
 
+import { INotificationService, SuccessNotificationResponse } from '@app/types/Notification'
 import { ServiceResponse } from '@app/types/Service'
 
 import * as DTO from './dto'
 import { NotificationService } from './notification.service'
-import { INotificationService, SuccessNotificationResponse } from '@app/types/Notification'
 
 @Controller()
 export class NotificationController implements INotificationService {
