@@ -1,6 +1,6 @@
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
-import { IChatDB, id, chatId, senderId } from '@app/types/Chat'
 import { chatStatus } from '@app/constants/chat'
+import { IChatDB, chatId, id, senderId } from '@app/types/Chat'
 
 export enum ChatType {
   PRIVATE = 'private',

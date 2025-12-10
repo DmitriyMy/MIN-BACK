@@ -11,8 +11,8 @@ import {
 import { EmptyResponse, ServiceResponse } from '@app/types/Service'
 import { SingleUserResponse } from '@app/types/User'
 
-import { AuthService } from '../services/auth.service'
 import * as DTO from '../dto'
+import { AuthService } from '../services/auth.service'
 
 @Controller()
 export class AuthController implements Pick<IAuthService, 'signUpUser' | 'signInUser' | 'restorePassword'> {

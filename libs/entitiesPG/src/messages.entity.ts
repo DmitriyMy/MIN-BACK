@@ -26,7 +26,7 @@ export class Messages extends BaseEntity implements IMessageDB {
     nullable: false,
     default: messageStatus.sent,
   })
-  public status: messageStatus
+  public messageStatus: messageStatus
 
   @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   createdAt: Date

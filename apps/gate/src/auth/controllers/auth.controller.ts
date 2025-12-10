@@ -11,13 +11,13 @@ import {
 } from '@nestjs/swagger'
 import { commonError, userError } from '@app/errors'
 import { IAuthService, SignInSuccessResponse, SignUpSuccessResponse } from '@app/types/Auth'
+import { ISuccessResponse } from '@app/types/Service'
 import { IUserDB } from '@app/types/User'
 
 import { getData } from '@app/utils/service'
 import * as DTO from '../dto'
 import { TokenService } from '../services/token.service'
 import { Public } from '../utils/auth.guards'
-import { ISuccessResponse } from '@app/types/Service'
 
 @ApiTags('AuthController')
 @Controller({ version: VERSION_NEUTRAL, path: 'auth' })

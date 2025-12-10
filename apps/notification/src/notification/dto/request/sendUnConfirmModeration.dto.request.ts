@@ -1,6 +1,6 @@
 import { IsEnum, IsString } from 'class-validator'
-import { ISendUnConfirmModerationRequest } from '@app/types/Notification'
 import { CardType } from '@app/constants/notification'
+import { ISendUnConfirmModerationRequest } from '@app/types/Notification'
 
 export class SendUnConfirmModerationDtoRequest implements ISendUnConfirmModerationRequest {
   @IsString()

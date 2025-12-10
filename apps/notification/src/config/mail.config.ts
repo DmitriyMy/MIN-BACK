@@ -18,7 +18,7 @@ export const getMailConfig = async (configService: ConfigService) => {
       from: `"${configService.get<string>('MAIL_FROM_NAME')}" <${configService.get<string>('MAIL_FROM_ADDRESS')}>`,
     },
     template: {
-      dir: __dirname + '/views/email-templates',
+      dir: `${__dirname}/views/email-templates`,
       adapter: new HandlebarsAdapter(),
       option: {
         strict: true,

@@ -1,11 +1,11 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common'
 import { MailerService } from '@nestjs-modules/mailer'
 
+import { NotificationSubject } from '@app/constants/notification'
+import { SuccessNotificationResponse } from '@app/types/Notification'
 import { ServiceResponse } from '@app/types/Service'
 
 import * as DTO from './dto'
-import { NotificationSubject } from '@app/constants/notification'
-import { SuccessNotificationResponse } from '@app/types/Notification'
 
 @Injectable()
 export class NotificationService {
