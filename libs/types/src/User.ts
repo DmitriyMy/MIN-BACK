@@ -23,7 +23,6 @@ export interface IUserDB {
   description: string
 }
 
-
 /**
  * Request: User
  */

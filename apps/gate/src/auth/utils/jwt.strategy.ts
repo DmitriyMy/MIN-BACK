@@ -25,9 +25,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, AuthStrategy.jwt) {
   public async validate(tokenPayload: TokenPayload) {
     this.logger.debug({ '[validate]': { tokenPayload } })
 
-    const { id: userId } = tokenPayload.user
+    const { userId } = tokenPayload.user
 
-    const readUserResponse = await this.userService.readUser({ userId })
+    const readUserResponse = await this.userService.getUser({ userId })
 
     this.logger.debug({ '[validate]': { readUserResponse } })
 
