@@ -33,6 +33,7 @@ export class MessageService implements IMessageService {
     const message = await this.messageRepository.save(createMessage)
 
     message.id = id
+    await message.reload()
 
     this.logger.debug({ '[createMessage]': { updatedMessage: message } })
 
