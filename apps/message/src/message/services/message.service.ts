@@ -20,8 +20,6 @@ export class MessageService implements IMessageService {
   public async createMessage(params: DTO.MessageCreateRequestDto) {
     this.logger.debug({ '[createMessage]': { params } })
 
-    const { id } = params
-
     const createMessage = this.messageRepository.create({
       ...params,
       messageStatus: messageStatus.sent,
@@ -32,7 +30,6 @@ export class MessageService implements IMessageService {
 
     const message = await this.messageRepository.save(createMessage)
 
-    message.id = id
     await message.reload()
 
     this.logger.debug({ '[createMessage]': { updatedMessage: message } })
