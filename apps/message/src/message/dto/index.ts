@@ -1,1 +1,1 @@
-export { IMessageCreateRequestDto } from './isMessageCreate.requset.dto'
+export { MessageCreateRequestDto } from './isMessageCreate.requset.dto'

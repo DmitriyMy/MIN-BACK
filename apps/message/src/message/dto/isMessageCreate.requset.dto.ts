@@ -1,10 +1,14 @@
+import { IsEmail } from 'class-validator'
 import { messageStatus } from '@app/constants/message'
-import { ChatId, MessageCreateRequest, MessageId, SenderId } from '@app/types/Message'
+import { ChatId, IMessageCreateRequest, MessageId, SenderId } from '@app/types/Message'
 
-export class IMessageCreateRequestDto implements MessageCreateRequest {
+export class MessageCreateRequestDto implements IMessageCreateRequest {
   public id: MessageId
 
   public chatId: ChatId
+
+  @IsEmail()
+  public email: string
 
   public senderId: SenderId
 

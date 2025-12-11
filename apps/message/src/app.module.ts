@@ -11,6 +11,7 @@ import {
   postgresqlConfig,
   dataSourceName as postgresqlDbDataSourceName,
 } from './config/postgresql.config'
+import { MessageModule } from './message/message.module'
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import {
     }),
     TraceIdRmqModule,
     LoggingModule,
+    MessageModule,
   ],
 })
 export class AppModule {}

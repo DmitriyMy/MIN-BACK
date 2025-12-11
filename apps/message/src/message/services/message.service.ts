@@ -1,14 +1,14 @@
-import {HttpStatus, Injectable, Logger} from '@nestjs/common'
-import {InjectRepository} from '@nestjs/typeorm'
-import {instanceToPlain, plainToInstance} from 'class-transformer'
-import {Repository} from 'typeorm'
+import { HttpStatus, Injectable, Logger } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { instanceToPlain, plainToInstance } from 'class-transformer'
+import { Repository } from 'typeorm'
 
-import {Messages} from '@app/entitiesPG'
-import {IMessageDB, IMessageService} from '@app/types/Message'
+import { messageStatus } from '@app/constants/message'
+import { Messages } from '@app/entitiesPG'
+import { IMessageDB, IMessageService } from '@app/types/Message'
 
-import {dataSourceName} from '../../config/postgresql.config'
+import { dataSourceName } from '../../config/postgresql.config'
 import * as DTO from '../dto'
-import {messageStatus} from "@app/constants/message";
 
 @Injectable()
 export class MessageService implements IMessageService {
@@ -17,12 +17,12 @@ export class MessageService implements IMessageService {
   @InjectRepository(Messages, dataSourceName)
   private readonly messageRepository: Repository<Messages>
 
-  public async createMessage(params: DTO.IMessageCreateRequestDto){
+  public async createMessage(params: DTO.MessageCreateRequestDto) {
     this.logger.debug({ '[createMessage]': { params } })
 
     const { id } = params
 
-    const createMessage = await this.messageRepository.create({
+    const createMessage = this.messageRepository.create({
       ...params,
       messageStatus: messageStatus.sent,
       createdAt: new Date(),
@@ -33,9 +33,6 @@ export class MessageService implements IMessageService {
     const message = await this.messageRepository.save(createMessage)
 
     message.id = id
-
-    await message.save()
-    await message.reload()
 
     this.logger.debug({ '[createMessage]': { updatedMessage: message } })
 

@@ -20,7 +20,7 @@ export interface IMessageDB {
   createdAt: Date
 }
 
-export interface MessageCreateRequest {
+export interface IMessageCreateRequest {
   id: MessageId
   chatId: ChatId
   senderId: SenderId
@@ -28,14 +28,14 @@ export interface MessageCreateRequest {
   messageStatus: messageStatus
 }
 
-export type MessageCreateResponse = Response<{ id: MessageId }>
+export type IMessageCreateResponse = Response<{ id: MessageId }>
 
 export abstract class IMessageService {
   /**
    * Message
    */
 
-  createMessage(_request: MessageCreateRequest): ServiceResponse<MessageCreateResponse> {
+  createMessage(_request: IMessageCreateRequest): ServiceResponse<IMessageCreateResponse> {
     throw new NotImplementedException()
   }
 }
