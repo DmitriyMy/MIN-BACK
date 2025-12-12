@@ -21,11 +21,8 @@ export interface IMessageDB {
 }
 
 export interface IMessageCreateRequest {
-  id: MessageId
   chatId: ChatId
-  senderId: SenderId
   text: string
-  messageStatus: messageStatus
 }
 
 export type IMessageCreateResponse = Response<{ id: MessageId }>
