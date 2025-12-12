@@ -1,8 +1,8 @@
-import { IsNumber, IsString } from 'class-validator'
+import { IsString } from 'class-validator'
 import { ChatId, IMessageCreateRequest } from '@app/types/Message'
 
 export class MessageCreateRequestDto implements IMessageCreateRequest {
-  @IsNumber()
+  @IsString()
   public chatId: ChatId
 
   @IsString()

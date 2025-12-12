@@ -5,8 +5,9 @@ import { Repository } from 'typeorm'
 
 import { messageStatus } from '@app/constants/message'
 import { Messages } from '@app/entitiesPG'
-import { IMessageDB, IMessageService } from '@app/types/Message'
+import { IMessageCreateResponse, IMessageDB, IMessageService } from '@app/types/Message'
 
+import { ServiceResponse } from '@app/types/Service'
 import { dataSourceName } from '../../config/postgresql.config'
 import * as DTO from '../dto'
 
@@ -17,7 +18,7 @@ export class MessageService implements IMessageService {
   @InjectRepository(Messages, dataSourceName)
   private readonly messageRepository: Repository<Messages>
 
-  public async createMessage(params: DTO.MessageCreateRequestDto) {
+  public async createMessage(params: DTO.MessageCreateRequestDto): ServiceResponse<IMessageCreateResponse> {
     this.logger.debug({ '[createMessage]': { params } })
 
     const createMessage = this.messageRepository.create({
