@@ -1,4 +1,4 @@
-import { messageStatus } from '@app/constants/message'
+import { MessageStatus } from '@app/constants/message'
 
 import { UserId } from '@app/types/User'
 
@@ -13,7 +13,7 @@ export interface IMessageDB {
   id: MessageId
   chatId: ChatId
   senderId: SenderId
-  text: string
-  status: messageStatus
+  message: string
+  messageStatus: MessageStatus
   createdAt: Date
 }

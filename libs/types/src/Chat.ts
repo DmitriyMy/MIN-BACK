@@ -1,19 +1,16 @@
-import { chatStatus } from '@app/constants/chat'
+import { ChatType } from '@app/constants/chat'
 
 import { UserId } from '@app/types/User'
+import { IMessageDB } from './Message'
 
-export type chatId = string
-export type id = string
-export type senderId = UserId
+export type ChatId = string
+export type SenderId = UserId
 /**
  * Entities
  */
 
-export interface IChatDB {
-    id: id
-    chatId: chatId
-    senderId: senderId
-    text: string
-    status: chatStatus
-    createdAt: Date
+export interface IChatDB extends Pick<IMessageDB, 'chatId' | 'senderId' | 'message' | 'messageStatus'> {
+  creator: UserId
+  type: ChatType
+  createdAt: Date
 }

@@ -144,7 +144,7 @@ export class AuthService implements IAuthService {
 
     const hashedPassword = await bcrypt.hash(password)
 
-    const emailVerificationCode = this.verificationService.getEmailToken(user.id)
+    const emailVerificationCode = this.verificationService.getEmailToken(user.userId)
 
     switch (notificationSubject) {
       case NotificationSubject.REGISTRATION: {
