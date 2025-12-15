@@ -18,6 +18,18 @@ export interface VerifyEmailSuccessResponse {
   token: string
 }
 
+export interface ValidateUserRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterUserRequest {
+  email: string
+  phone: string
+  name: string
+  consent: string
+}
+
 export interface SignUpSuccessResponse extends ISuccessResponse {
   email: string
 }

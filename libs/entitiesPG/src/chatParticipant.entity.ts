@@ -1,24 +1,23 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
-import { ChatID, IChatParticipantDB, UserID } from '@app/types/ChatParticipant'
+import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryColumn } from 'typeorm'
+import { ChatId } from '@app/types/Chat'
+import { IChatParticipantDB } from '@app/types/ChatParticipant'
+import { UserId } from '@app/types/User'
 
-@Entity('chat-participant')
+@Entity('chat_participants')
 export class ChatParticipant extends BaseEntity implements IChatParticipantDB {
-  @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column({
+  @PrimaryColumn({
     type: 'uuid',
     nullable: false,
     name: 'chat_id',
   })
-  public chatId: ChatID
+  public chatId: ChatId
 
   @Column({
     type: 'uuid',
     nullable: false,
     name: 'user_id',
   })
-  public userId: UserID
+  public userId: UserId
 
   @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   public createdAt: Date

@@ -4,7 +4,7 @@ import { Strategy } from 'passport-local'
 
 import { AuthStrategy } from '@app/constants/auth'
 import { ValidateUserRequest } from '@app/types/Auth'
-import { TokenService } from '../token.service'
+import { TokenService } from '../services/token.service'
 
 @Injectable()
 export class EmailStrategy extends PassportStrategy(Strategy, AuthStrategy.email) {

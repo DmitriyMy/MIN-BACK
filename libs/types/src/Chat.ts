@@ -10,10 +10,10 @@ export type senderId = UserId
  */
 
 export interface IChatDB {
-  id: id
-  chatId: chatId
-  senderId: senderId
-  text: string
-  status: chatStatus
-  createdAt: Date
+    id: id
+    chatId: chatId
+    senderId: senderId
+    text: string
+    status: chatStatus
+    createdAt: Date
 }
