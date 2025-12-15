@@ -1,7 +1,7 @@
 export const MESSAGE_QUEUE = 'message'
 
-export enum messageStatus {
-    sent = 'sent',
-    delivered = 'delivered',
-    read = 'read',
+export enum MessageStatus {
+  sent = 0,
+  delivered = 1,
+  read = 2,
 }

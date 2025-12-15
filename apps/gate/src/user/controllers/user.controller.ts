@@ -22,9 +22,9 @@ import {
 } from '@nestjs/swagger'
 
 import { commonError, userError } from '@app/errors'
-import { IGetUserRequest, IUserService, IUpdateUserRequest, UserId } from '@app/types/User'
-import * as DTO from '../dto'
+import { IGetUserRequest, IUpdateUserRequest, IUserService, UserId } from '@app/types/User'
 import { JwtAuthGuard, ReqUser } from '../../auth/utils'
+import * as DTO from '../dto'
 
 @ApiTags('UserController')
 @ApiBearerAuth()

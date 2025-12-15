@@ -1,6 +1,6 @@
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
 
-import { messageStatus } from '@app/constants/message'
+import { MessageStatus } from '@app/constants/message'
 import { ChatId, IMessageDB, MessageId, SenderId } from '@app/types/Message'
 
 @Entity('messages')
@@ -17,16 +17,14 @@ export class Messages extends BaseEntity implements IMessageDB {
   @Column({
     type: 'varchar',
     nullable: false,
-    name: 'text',
   })
-  public text: string
+  message: string
 
   @Column({
-    type: 'enum',
-    nullable: false,
-    default: messageStatus.sent,
+    type: 'smallint',
+    default: MessageStatus.sent,
   })
-  public status: messageStatus
+  messageStatus: MessageStatus
 
   @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   createdAt: Date
