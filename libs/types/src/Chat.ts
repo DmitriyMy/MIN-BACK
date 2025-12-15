@@ -14,3 +14,18 @@ export interface IChatDB extends Pick<IMessageDB, 'chatId' | 'senderId' | 'messa
   type: ChatType
   createdAt: Date
 }
+
+export abstract class IChatService {
+  /**
+   * Chat
+   */
+  //   signUpUser(_request: ISignUpUserRequest): ServiceResponse<SignUpUserResponse> {
+  //     throw new NotImplementedException()
+  //   }
+  //   signInUser(_request: ISignInUserRequest): ServiceResponse<SingleUserResponse> {
+  //     throw new NotImplementedException()
+  //   }
+  //   restorePassword(_request: RestorePasswordRequest): ServiceResponse<EmptyResponse> {
+  //     throw new NotImplementedException()
+  //   }
+}
