@@ -1,4 +1,6 @@
 export { User } from './user.entity'
-export { Chat, ChatType } from './chat.entity'
-export { ChatParticipant } from './chat-participant.entity'
+export { Chat } from './chat.entity'
+export { ChatParticipant } from './chatParticipant.entity'
 export { Messages } from './messages.entity'
+
+export { ChatType } from '@app/constants/chat'

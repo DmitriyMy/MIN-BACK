@@ -3,8 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
 import { Chat, ChatParticipant } from '@app/entitiesPG'
-import { commonError } from '@app/errors'
-import { IChatService } from '@app/types/Chat'
 import { ServiceResponse } from '@app/types/Service'
 import { ChatType } from '@app/constants/chat'
 
@@ -12,7 +10,7 @@ import * as DTO from '../dto'
 import { dataSourceName } from '../../config/postgresql.config'
 
 @Injectable()
-export class ChatService implements IChatService {
+export class ChatService {
   private logger = new Logger(ChatService.name)
 
   @InjectRepository(Chat, dataSourceName)
@@ -24,36 +22,38 @@ export class ChatService implements IChatService {
   public async createChat(params: DTO.CreateChatRequestDto): ServiceResponse<any> {
     this.logger.debug({ '[createChat]': { params } })
 
-    const { participants, name, description, type } = params
+    const { name, participants, type = ChatType.PRIVATE } = params
 
-    const firstMessage = this.chatRepository.create({
-      chatId: 'new-chat-id',
-      senderId: participants[0],
-      type: type || ChatType.PRIVATE,
-      text: `Chat "${name}" created`,
+    const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    const chatParticipants = participants.map(userId => {
+      const participant = new ChatParticipant()
+      participant.chatId = chatId
+      participant.userId = userId
+      return participant
     })
+
+    await this.chatParticipantRepository.save(chatParticipants)
+
+    const firstMessage = new Chat()
+    firstMessage.chatId = chatId
+    firstMessage.senderId = participants[0]
+    firstMessage.creator = participants[0]
+    firstMessage.type = type
+    firstMessage.text = `Chat "${name}" created`
+    firstMessage.status = 'sent'
 
     await this.chatRepository.save(firstMessage)
 
-    if (participants && participants.length > 0) {
-      const chatParticipants = participants.map(userId =>
-        this.chatParticipantRepository.create({
-          chatId: firstMessage.chatId, // Используем chatId из сообщения
-          userId,
-        })
-      )
-      await this.chatParticipantRepository.save(chatParticipants)
-    }
-
-    await firstMessage.reload()
+    this.logger.debug({ '[createChat]': { firstMessage } })
 
     return {
       data: {
         chat: {
-          id: firstMessage.chatId,
+          id: chatId,
           name,
-          description,
-          type: firstMessage.type,
+          type,
+          participants,
           createdAt: firstMessage.createdAt
         }
       },
@@ -66,25 +66,31 @@ export class ChatService implements IChatService {
 
     const { chatId, senderId, content } = params
 
-    const participant = await this.chatParticipantRepository.findOne({
-      where: {
-        chatId,
-        userId: senderId
-      }
+    const participant = await this.chatParticipantRepository.findOneBy({
+      chatId,
+      userId: senderId
     })
+
+    this.logger.debug({ '[sendMessage]': { participant } })
 
     if (!participant) {
-      throw new HttpException('User is not a participant of this chat or chat does not exist', HttpStatus.FORBIDDEN)
+      throw new HttpException(
+        'User is not a participant of this chat',
+        HttpStatus.FORBIDDEN
+      )
     }
 
-    const message = this.chatRepository.create({
-      chatId,
-      senderId,
-      text: content,
-      type: ChatType.PRIVATE,
-    })
+    const message = new Chat()
+    message.chatId = chatId
+    message.senderId = senderId
+    message.creator = senderId
+    message.text = content
+    message.type = ChatType.PRIVATE
+    message.status = 'sent'
 
     await this.chatRepository.save(message)
+
+    this.logger.debug({ '[sendMessage]': { message } })
 
     return {
       data: {
@@ -96,6 +102,33 @@ export class ChatService implements IChatService {
           status: message.status,
           createdAt: message.createdAt
         }
+      },
+      status: HttpStatus.OK
+    }
+  }
+
+  public async getChatMessages(params: { chatId: string }): ServiceResponse<any> {
+    this.logger.debug({ '[getChatMessages]': { params } })
+
+    const { chatId } = params
+
+    const messages = await this.chatRepository.find({
+      where: { chatId },
+      order: { createdAt: 'DESC' }
+    })
+
+    this.logger.debug({ '[getChatMessages]': { messages } })
+
+    return {
+      data: {
+        messages: messages.map(msg => ({
+          id: msg.id,
+          chatId: msg.chatId,
+          senderId: msg.senderId,
+          text: msg.text,
+          status: msg.status,
+          createdAt: msg.createdAt
+        }))
       },
       status: HttpStatus.OK
     }

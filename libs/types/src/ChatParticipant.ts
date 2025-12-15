@@ -1,7 +1,7 @@
-import { ChatId } from '@app/types/Chat'
+import { chatId } from '@app/types/Chat'
 import { UserId } from '@app/types/User'
 
 export interface IChatParticipantDB {
-  chatId: ChatId
+  chatId: chatId
   userId: UserId
 }

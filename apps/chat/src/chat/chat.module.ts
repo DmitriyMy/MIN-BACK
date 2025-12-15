@@ -12,6 +12,5 @@ import { dataSourceName } from '../config/postgresql.config'
   ],
   controllers: [ChatController],
   providers: [ChatService],
-  exports: [ChatService],
 })
 export class ChatModule {}

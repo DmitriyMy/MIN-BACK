@@ -1,8 +1,7 @@
 import { IsString, IsOptional, IsArray, IsEnum } from 'class-validator'
-import { ICreateChatRequest } from '@app/types/Chat'
 import { ChatType } from '@app/constants/chat'
 
-export class CreateChatRequestDto implements ICreateChatRequest {
+export class CreateChatRequestDto {
   @IsString()
   name: string
 

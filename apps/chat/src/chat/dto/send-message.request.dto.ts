@@ -1,7 +1,6 @@
 import { IsString } from 'class-validator'
-import { ISendMessageRequest } from '@app/types/Chat'
 
-export class SendMessageRequestDto implements ISendMessageRequest {
+export class SendMessageRequestDto {
   @IsString()
   chatId: string
 
