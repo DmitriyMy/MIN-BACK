@@ -5,20 +5,19 @@ import * as bcrypt from '@node-rs/bcrypt'
 import { instanceToPlain, plainToInstance } from 'class-transformer'
 import { Repository } from 'typeorm'
 
+import { NotificationSubject } from '@app/constants/notification'
 import { UserRole } from '@app/constants/user'
 import { User } from '@app/entitiesPG'
-import { commonError, userError } from '@app/errors'
+import { commonError, notificationError, userError } from '@app/errors'
 import { IAuthService, ISignInUserRequest, SignUpUserResponse } from '@app/types/Auth'
 import { INotificationService } from '@app/types/Notification'
 import { EmptyResponse, ServiceResponse } from '@app/types/Service'
 import { IUserDB, SingleUserResponse } from '@app/types/User'
 
-import * as DTO from '../dto'
+import { isErrorServiceResponse } from '@app/utils/service'
 import { dataSourceName } from '../../config/postgresql.config'
 import { VerificationService } from '../../verification/verification.service'
-import { isErrorServiceResponse } from '@app/utils/service'
-import { NotificationSubject } from '@app/constants/notification'
-import { notificationError } from '@app/errors'
+import * as DTO from '../dto'
 
 @Injectable()
 export class AuthService implements IAuthService {
@@ -172,7 +171,7 @@ export class AuthService implements IAuthService {
         break
       }
       default: {
-        new Error(notificationError.UNSUPPORTED_NOTIFICATION_FORMAT.error[0])
+        throw new Error(notificationError.UNSUPPORTED_NOTIFICATION_FORMAT.error[0])
       }
     }
 
