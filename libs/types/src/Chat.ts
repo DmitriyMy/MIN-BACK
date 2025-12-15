@@ -1,4 +1,4 @@
-import { chatStatus } from '@app/constants/chat'
+import { ChatType } from '@app/constants/chat'
 
 import { UserId } from '@app/types/User'
 
@@ -10,10 +10,10 @@ export type senderId = UserId
  */
 
 export interface IChatDB {
-    id: id
-    chatId: chatId
-    senderId: senderId
-    text: string
-    status: chatStatus
-    createdAt: Date
+  id: id
+  chatId: chatId
+  senderId: senderId
+  message: string
+  status: ChatType
+  createdAt: Date
 }
