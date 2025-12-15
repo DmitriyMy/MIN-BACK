@@ -11,6 +11,7 @@ import {
   postgresqlConfig,
   dataSourceName as postgresqlDbDataSourceName,
 } from './config/postgresql.config'
+
 import { MessageModule } from './message/message.module'
 
 @Module({
@@ -42,9 +43,9 @@ import { MessageModule } from './message/message.module'
       useFactory: (configService: ConfigService) => configService.get<PostgresqlConfig>('postgresql')!,
       inject: [ConfigService],
     }),
+    MessageModule,
     TraceIdRmqModule,
     LoggingModule,
-    MessageModule,
   ],
 })
 export class AppModule {}
