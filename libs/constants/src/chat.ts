@@ -5,3 +5,9 @@ export enum chatStatus {
     delivered = 'delivered',
     read = 'read',
 }
+export enum ChatType {
+  PRIVATE = 'private',
+  GROUP = 'group',
+  CHANNEL = 'channel'
+
+}
