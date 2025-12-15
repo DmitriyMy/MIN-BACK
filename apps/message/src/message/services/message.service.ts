@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm'
 import { instanceToPlain, plainToInstance } from 'class-transformer'
 import { Repository } from 'typeorm'
 
-import { messageStatus } from '@app/constants/message'
+import { MessageStatus } from '@app/constants/message'
 import { Messages } from '@app/entitiesPG'
 import { IMessageCreateResponse, IMessageDB, IMessageService } from '@app/types/Message'
 
@@ -23,7 +23,7 @@ export class MessageService implements IMessageService {
 
     const createMessage = this.messageRepository.create({
       ...params,
-      messageStatus: messageStatus.sent,
+      messageStatus: MessageStatus.sent,
       createdAt: new Date(),
     })
 
