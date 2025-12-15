@@ -1,11 +1,11 @@
 import { ExecutionContext, UnauthorizedException, createParamDecorator } from '@nestjs/common'
 import { Request } from 'express'
-import { IUser } from '@app/types/User'
+import { IUserDB } from '@app/types/User'
 
 export const ReqUser = createParamDecorator(
-  (data: keyof IUser | undefined, ctx: ExecutionContext): IUser | IUser[keyof IUser] => {
+  (data: keyof IUserDB | undefined, ctx: ExecutionContext): IUserDB | IUserDB[keyof IUserDB] => {
     const request = ctx.switchToHttp().getRequest<Request>()
-    const user = request.user as IUser | undefined
+    const user = request.user as IUserDB | undefined
 
     if (!user) {
       throw new UnauthorizedException()

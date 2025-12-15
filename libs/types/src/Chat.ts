@@ -1,34 +1,31 @@
-import { ServiceResponse } from './Service'
 import { ChatType } from '@app/constants/chat'
 
-export type id = string
-export type chatId = string
-export type senderId = string
+import { UserId } from '@app/types/User'
+import { IMessageDB } from './Message'
 
-export interface IChatDB {
-  id: id
-  chatId: chatId
-  senderId: senderId
+export type ChatId = string
+export type SenderId = UserId
+/**
+ * Entities
+ */
+
+export interface IChatDB extends Pick<IMessageDB, 'chatId' | 'senderId' | 'message' | 'messageStatus'> {
+  creator: UserId
   type: ChatType
-  text: string
-  status: string
   createdAt: Date
 }
 
-export interface ICreateChatRequest {
-  name: string
-  description?: string
-  type?: ChatType
-  participants: string[]
-}
-
-export interface ISendMessageRequest {
-  chatId: string
-  senderId: string
-  content: string
-}
-
-export interface IChatService {
-  createChat(params: ICreateChatRequest): ServiceResponse<any>
-  sendMessage(params: ISendMessageRequest): ServiceResponse<any>
+export abstract class IChatService {
+  /**
+   * Chat
+   */
+  //   signUpUser(_request: ISignUpUserRequest): ServiceResponse<SignUpUserResponse> {
+  //     throw new NotImplementedException()
+  //   }
+  //   signInUser(_request: ISignInUserRequest): ServiceResponse<SingleUserResponse> {
+  //     throw new NotImplementedException()
+  //   }
+  //   restorePassword(_request: RestorePasswordRequest): ServiceResponse<EmptyResponse> {
+  //     throw new NotImplementedException()
+  //   }
 }
