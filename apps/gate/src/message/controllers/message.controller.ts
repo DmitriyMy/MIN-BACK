@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Inject,
-  Logger,
-  Param,
-  Patch,
-  Post,
-  VERSION_NEUTRAL,
-} from '@nestjs/common'
+import { Body, Controller, Get, Inject, Logger, Param, Patch, Post, UseGuards, VERSION_NEUTRAL } from '@nestjs/common'
 
 import {
   ApiBearerAuth,
@@ -21,13 +10,21 @@ import {
 } from '@nestjs/swagger'
 
 import { commonError } from '@app/errors'
-import { CreateMessageSuccessResponse, IGetMessageRequest, IMessageService, MessageId } from '@app/types/Message'
+import {
+  CreateMessageSuccessResponse,
+  IGetMessageRequest,
+  IMessageService,
+  IUpdateMessageRequest,
+  MessageId,
+} from '@app/types/Message'
+import { IUserDB } from '@app/types/User'
 import { getData } from '@app/utils/service'
+import { JwtAuthGuard, ReqUser } from '../../auth/utils'
 import * as DTO from '../dto'
-import { ReqMessage } from '../utils/request-message.decorator'
 
 @ApiTags('MessageController')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller({ version: VERSION_NEUTRAL, path: 'message' })
 export class MessageController {
   private logger = new Logger(MessageController.name)
@@ -39,9 +36,18 @@ export class MessageController {
   @ApiOperation({ summary: 'Create message' })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
-  public async createMessage(@Body() body: DTO.MessageCreateDtoRequest): Promise<CreateMessageSuccessResponse> {
-    this.logger.debug({ '[createMessage]': { body } })
-    const response = await this.messageService.createMessage(body)
+  public async createMessage(
+    @ReqUser() user: IUserDB,
+    @Body() body: DTO.MessageCreateDtoRequest,
+  ): Promise<CreateMessageSuccessResponse> {
+    this.logger.debug({ '[createMessage]': { user, body } })
+
+    const requestData = {
+      ...body,
+      senderId: user.userId,
+    }
+
+    const response = await this.messageService.createMessage(requestData)
     this.logger.debug({ '[createMessage]': { response } })
 
     const { message: messageObj } = getData(response).data
@@ -53,14 +59,13 @@ export class MessageController {
   @ApiOperation({ summary: 'Get message data' })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
-  public async getMessage(@ReqMessage('messageId') requestorId: MessageId, @Param('messageId') messageId: MessageId) {
-    const requestData: IGetMessageRequest = { messageId }
-    if (messageId !== requestorId) {
-      throw new ForbiddenException(commonError.DONT_ACCESS)
-    }
+  public async getMessage(@ReqUser() user: IUserDB, @Param('messageId') messageId: MessageId) {
+    const requestData: IGetMessageRequest = { messageId, senderId: user.userId }
+
     this.logger.debug({ '[getMessage]': { requestData } })
     const response = await this.messageService.getMessage(requestData)
     this.logger.debug({ '[getMessage]': { response } })
+
     return response
   }
 
@@ -70,16 +75,18 @@ export class MessageController {
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async updateMessage(
-    @ReqMessage('messageId') requestorId: MessageId,
+    @ReqUser() user: IUserDB,
     @Param('messageId') messageId: MessageId,
-    @Body() body: DTO.MessageCreateDtoRequest,
+    @Body() body: IUpdateMessageRequest,
   ) {
-    if (messageId !== requestorId) {
-      throw new ForbiddenException(commonError.DONT_ACCESS)
+    const updateData: IUpdateMessageRequest = {
+      ...body,
+      messageId,
+      senderId: user.userId,
     }
-    const requestData: IGetMessageRequest = { ...body, messageId }
-    this.logger.debug({ '[updateMessage]': { requestData } })
-    const response = await this.messageService.updateMessage(requestData)
+
+    this.logger.debug({ '[updateMessage]': { updateData } })
+    const response = await this.messageService.updateMessage(updateData)
     this.logger.debug({ '[updateMessage]': { response } })
 
     return response

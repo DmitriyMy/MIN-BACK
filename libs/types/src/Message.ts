@@ -22,6 +22,7 @@ export interface IMessageDB {
 
 export interface IGetMessageRequest {
   messageId: MessageId
+  senderId?: SenderId
 }
 
 export interface IUpdateMessageRequest {
@@ -36,7 +37,7 @@ export interface CreateMessageSuccessResponse extends ISuccessResponse {
   message: string
 }
 
-export type IMessageCreateRequest = Pick<IMessageDB, 'chatId' | 'message'>
+export type IMessageCreateRequest = Pick<IMessageDB, 'chatId' | 'message' | 'senderId'>
 
 export type IMessageCreateResponse = Response<{ message: IMessageDB }>
 

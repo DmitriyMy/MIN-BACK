@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { IsString } from 'class-validator'
-import { ChatId, IMessageCreateRequest } from '@app/types/Message'
+import { ChatId, SenderId, IMessageCreateRequest } from '@app/types/Message'
 
 export class MessageCreateDtoRequest implements IMessageCreateRequest {
   @ApiProperty({
@@ -11,6 +11,15 @@ export class MessageCreateDtoRequest implements IMessageCreateRequest {
   })
   @IsString()
   chatId: ChatId
+
+  @ApiProperty({
+    type: String,
+    example: '123',
+    required: true,
+    nullable: false,
+  })
+  @IsString()
+  senderId: SenderId
 
   @ApiProperty({
     type: String,
