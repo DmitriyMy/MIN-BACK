@@ -2,7 +2,7 @@ import { NotImplementedException } from '@nestjs/common'
 import { MessageStatus } from '@app/constants/message'
 
 import { UserId } from '@app/types/User'
-import { Response, ServiceResponse } from './Service'
+import { ISuccessResponse, Response, ServiceResponse } from './Service'
 
 export type ChatId = string
 export type MessageId = string
@@ -30,6 +30,10 @@ export interface IUpdateMessageRequest {
   senderId?: SenderId
   chatId?: ChatId
   messageStatus?: MessageStatus
+}
+
+export interface CreateMessageSuccessResponse extends ISuccessResponse {
+  message: string
 }
 
 export type IMessageCreateRequest = Pick<IMessageDB, 'chatId' | 'message'>
