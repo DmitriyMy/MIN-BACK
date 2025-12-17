@@ -10,15 +10,8 @@ import {
 } from '@nestjs/swagger'
 
 import { commonError } from '@app/errors'
-import {
-  CreateMessageSuccessResponse,
-  IGetMessageRequest,
-  IMessageService,
-  IUpdateMessageRequest,
-  MessageId,
-} from '@app/types/Message'
+import { IGetMessageRequest, IMessageService, IUpdateMessageRequest, MessageId } from '@app/types/Message'
 import { IUserDB } from '@app/types/User'
-import { getData } from '@app/utils/service'
 import { JwtAuthGuard, ReqUser } from '../../auth/utils'
 import * as DTO from '../dto'
 
@@ -36,10 +29,7 @@ export class MessageController {
   @ApiOperation({ summary: 'Create message' })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
-  public async createMessage(
-    @ReqUser() user: IUserDB,
-    @Body() body: DTO.MessageCreateDtoRequest,
-  ): Promise<CreateMessageSuccessResponse> {
+  public async createMessage(@ReqUser() user: IUserDB, @Body() body: DTO.MessageCreateDtoRequest) {
     this.logger.debug({ '[createMessage]': { user, body } })
 
     const requestData = {
@@ -50,9 +40,7 @@ export class MessageController {
     const response = await this.messageService.createMessage(requestData)
     this.logger.debug({ '[createMessage]': { response } })
 
-    const { message: messageObj } = getData(response).data
-    const messageText = messageObj.message
-    return { message: messageText, success: !!messageText }
+    return response
   }
 
   @Get()
