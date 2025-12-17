@@ -2,7 +2,7 @@ import { NotImplementedException } from '@nestjs/common'
 import { MessageStatus } from '@app/constants/message'
 
 import { UserId } from '@app/types/User'
-import { Response, ServiceResponse } from './Service'
+import { ISuccessResponse, Response, ServiceResponse } from './Service'
 
 export type ChatId = string
 export type MessageId = string
@@ -12,7 +12,7 @@ export type SenderId = UserId
  */
 
 export interface IMessageDB {
-  id: MessageId
+  messageId: MessageId
   chatId: ChatId
   senderId: SenderId
   message: string
@@ -20,14 +20,40 @@ export interface IMessageDB {
   createdAt: Date
 }
 
-export type IMessageCreateRequest = Pick<IMessageDB, 'chatId' | 'message'>
+export interface IGetMessageRequest {
+  messageId: MessageId
+  senderId?: SenderId
+}
+
+export interface IUpdateMessageRequest {
+  message?: string
+  messageId: MessageId
+  senderId?: SenderId
+  chatId?: ChatId
+  messageStatus?: MessageStatus
+}
+
+export interface CreateMessageSuccessResponse extends ISuccessResponse {
+  message: string
+}
+
+export type IMessageCreateRequest = Pick<IMessageDB, 'chatId' | 'message' | 'senderId'>
 
 export type IMessageCreateResponse = Response<{ message: IMessageDB }>
+
+export type SingleMessageResponse = Response<{ message: IMessageDB }>
 
 export abstract class IMessageService {
   /**
    * Message
    */
+  getMessage(_request: IGetMessageRequest): ServiceResponse<SingleMessageResponse> {
+    throw new NotImplementedException()
+  }
+
+  updateMessage(_request: IUpdateMessageRequest): ServiceResponse<SingleMessageResponse> {
+    throw new NotImplementedException()
+  }
 
   createMessage(_request: IMessageCreateRequest): ServiceResponse<IMessageCreateResponse> {
     throw new NotImplementedException()
