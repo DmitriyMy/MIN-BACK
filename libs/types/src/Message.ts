@@ -18,28 +18,42 @@ export interface IMessageDB {
   message: string
   messageStatus: MessageStatus
   createdAt: Date
+  updatedAt: Date
 }
 
 export interface IGetMessageRequest {
   messageId: MessageId
-  senderId?: SenderId
+  senderId: SenderId
 }
 
-export interface IUpdateMessageRequest {
-  message?: string
+export interface IMessageUpdateRequest {
+  message: string
   messageId: MessageId
-  senderId?: SenderId
-  chatId?: ChatId
+  senderId: SenderId
   messageStatus?: MessageStatus
+}
+
+export interface IMessageUpdateStatusRequest {
+  messageId: MessageId
+  senderId: SenderId
+  messageStatus: MessageStatus
+}
+
+export interface IMessageCreateRequest {
+  chatId: ChatId
+  senderId: SenderId
+  message: string
 }
 
 export interface CreateMessageSuccessResponse extends ISuccessResponse {
   message: string
 }
 
-export type IMessageCreateRequest = Pick<IMessageDB, 'chatId' | 'message' | 'senderId'>
-
 export type IMessageCreateResponse = Response<{ message: IMessageDB }>
+
+export type IMessageUpdateResponse = Response<{ message: IMessageDB }>
+
+export type IMessageUpdateStatusResponse = Response<{ message: IMessageDB }>
 
 export type SingleMessageResponse = Response<{ message: IMessageDB }>
 
@@ -51,7 +65,11 @@ export abstract class IMessageService {
     throw new NotImplementedException()
   }
 
-  updateMessage(_request: IUpdateMessageRequest): ServiceResponse<SingleMessageResponse> {
+  updateMessage(_request: IMessageUpdateRequest): ServiceResponse<IMessageUpdateResponse> {
+    throw new NotImplementedException()
+  }
+
+  updateMessageStatus(_request: IMessageUpdateStatusRequest): ServiceResponse<IMessageUpdateStatusResponse> {
     throw new NotImplementedException()
   }
 

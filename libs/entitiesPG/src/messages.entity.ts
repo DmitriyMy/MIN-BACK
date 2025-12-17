@@ -1,4 +1,4 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
+import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
 
 import { MessageStatus } from '@app/constants/message'
 import { ChatId, IMessageDB, MessageId, SenderId } from '@app/types/Message'
@@ -6,7 +6,7 @@ import { ChatId, IMessageDB, MessageId, SenderId } from '@app/types/Message'
 @Entity('messages')
 export class Messages extends BaseEntity implements IMessageDB {
   @PrimaryGeneratedColumn('uuid')
-  id: MessageId
+  messageId: MessageId
 
   @Column({ name: 'chat_id', type: 'uuid' })
   chatId: ChatId
@@ -28,4 +28,7 @@ export class Messages extends BaseEntity implements IMessageDB {
 
   @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   createdAt: Date
+
+  @UpdateDateColumn({ type: 'timestamp with time zone', name: 'updated_at' })
+  updatedAt: Date
 }
