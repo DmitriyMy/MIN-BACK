@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Inject, Logger, Param, Patch, Post, UseGuards, VERSION_NEUTRAL } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Logger,
+  Param,
+  Patch,
+  Post,
+  Put,
+  UseGuards,
+  VERSION_NEUTRAL,
+} from '@nestjs/common'
 
 import {
   ApiBearerAuth,
@@ -10,7 +22,7 @@ import {
 } from '@nestjs/swagger'
 
 import { commonError } from '@app/errors'
-import { IGetMessageRequest, IMessageService, IUpdateMessageRequest, MessageId } from '@app/types/Message'
+import { IGetMessageRequest, IMessageService, IMessageUpdateRequest, MessageId } from '@app/types/Message'
 import { IUserDB } from '@app/types/User'
 import { JwtAuthGuard, ReqUser } from '../../auth/utils'
 import * as DTO from '../dto'
@@ -57,17 +69,17 @@ export class MessageController {
     return response
   }
 
-  @Patch()
+  @Put()
   @ApiOperation({ summary: 'Update message data' })
-  @ApiBody({ type: DTO.MessageCreateDtoRequest })
+  @ApiBody({ type: DTO.MessageUpdateDtoRequest })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async updateMessage(
     @ReqUser() user: IUserDB,
     @Param('messageId') messageId: MessageId,
-    @Body() body: IUpdateMessageRequest,
+    @Body() body: IMessageUpdateRequest,
   ) {
-    const updateData: IUpdateMessageRequest = {
+    const updateData: IMessageUpdateRequest = {
       ...body,
       messageId,
       senderId: user.userId,
@@ -76,6 +88,29 @@ export class MessageController {
     this.logger.debug({ '[updateMessage]': { updateData } })
     const response = await this.messageService.updateMessage(updateData)
     this.logger.debug({ '[updateMessage]': { response } })
+
+    return response
+  }
+
+  @Patch()
+  @ApiOperation({ summary: 'Update message status' })
+  @ApiBody({ type: DTO.MessageUpdateStatusDtoRequest })
+  @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
+  @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
+  public async updateMessageStatus(
+    @ReqUser() user: IUserDB,
+    @Param('messageId') messageId: MessageId,
+    @Body() body: Omit<DTO.MessageUpdateStatusDtoRequest, 'messageId' | 'senderId'>,
+  ) {
+    const updateData = {
+      ...body,
+      messageId,
+      senderId: user.userId,
+    }
+
+    this.logger.debug({ '[updateMessageStatus]': { updateData } })
+    const response = await this.messageService.updateMessageStatus(updateData)
+    this.logger.debug({ '[updateMessageStatus]': { response } })
 
     return response
   }
