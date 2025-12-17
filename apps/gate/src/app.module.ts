@@ -8,6 +8,7 @@ import { AsyncStatusCodeInterceptor, LoggingModule, TraceIdHttpModule } from '@a
 
 import { AuthModule } from './auth/auth.module'
 import { JwtAuthGuard } from './auth/utils'
+import { MessageModule } from './message/message.module'
 import { UserModule } from './user/user.module'
 import { JsonBodyMiddleware } from './utils/json-body.middleware'
 
@@ -43,6 +44,7 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
     LoggingModule,
     AuthModule,
     UserModule,
+    MessageModule,
   ],
   providers: [
     {

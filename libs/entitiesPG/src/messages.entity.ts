@@ -6,7 +6,7 @@ import { ChatId, IMessageDB, MessageId, SenderId } from '@app/types/Message'
 @Entity('messages')
 export class Messages extends BaseEntity implements IMessageDB {
   @PrimaryGeneratedColumn('uuid')
-  id: MessageId
+  messageId: MessageId
 
   @Column({ name: 'chat_id', type: 'uuid' })
   chatId: ChatId
