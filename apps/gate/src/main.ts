@@ -5,6 +5,7 @@ import { HttpExceptionFilter, PinoLoggerService } from '@app/infrastructure'
 
 import { AppModule } from './app.module'
 import { setupSwagger } from './helpers/swagger-builder'
+import { SocketIoAdapter } from './utilsWs/socketIO.adapter'
 
 async function bootstrap() {
   const { GATE_APP_PORT, SWAGGER_ENABLED } = process.env
@@ -18,7 +19,10 @@ async function bootstrap() {
   const logger = app.get(PinoLoggerService)
   app.useLogger(logger)
 
-  app.enableCors()
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN ?? true,
+    credentials: true,
+  })
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -39,6 +43,8 @@ async function bootstrap() {
   })
 
   app.useGlobalFilters(new HttpExceptionFilter())
+
+  app.useWebSocketAdapter(new SocketIoAdapter(app))
 
   if (SWAGGER_ENABLED === 'true') {
     setupSwagger(app)

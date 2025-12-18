@@ -1,9 +1,9 @@
-version: '3.9'
+version: "3.9"
 services:
   auth:
     container_name: auth
     env_file:
-      - example.env
+      - .env
     environment:
       PG_DB_HOST: ${PG_DB_HOST}
       PG_DB_PORT: ${PG_DB_PORT}
@@ -25,7 +25,7 @@ services:
   gate:
     container_name: gate
     env_file:
-      - example.env
+      - .env
     environment:
       GATE_APP_HOST: ${GATE_APP_HOST}
       GATE_APP_PORT: ${GATE_APP_PORT}
@@ -45,7 +45,7 @@ services:
   user:
     container_name: user
     env_file:
-      - example.env
+      - .env
     environment:
       PG_DB_HOST: ${PG_DB_HOST}
       PG_DB_PORT: ${PG_DB_PORT}
@@ -67,7 +67,7 @@ services:
   message:
     container_name: message
     env_file:
-      - example.env
+      - .env
     environment:
       PG_DB_HOST: ${PG_DB_HOST}
       PG_DB_PORT: ${PG_DB_PORT}
@@ -95,15 +95,19 @@ services:
       POSTGRES_DB: ${PG_DB_NAME}
       POSTGRES_USER: ${PG_DB_USER}
       POSTGRES_PASSWORD: ${PG_DB_PASSWORD}
-    command: [ "postgres", "-c", "log_statement=all" ]
+    command: ["postgres", "-c", "log_statement=all"]
     ports:
-      - '${PG_DB_PORT}:5432'
+      - "${PG_DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   nats:
     image: nats:2.10.10
     ports:
-      - '4222:4222'
-      - '6222:6222'
-      - '8222:8222'
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+
+volumes:
+  postgres_data:
+  pgadmin_data:

@@ -1,11 +1,11 @@
-import { INestApplicationContext, INestMicroservice, ValidationPipe } from '@nestjs/common'
+import { INestApplicationContext, INestMicroservice, Type, ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
 import { AsyncAllExceptionsFilter } from '../exception-filters'
 import { PinoLoggerService } from '../logging'
 
 export async function bootstrapNatsMicroservice(
-  rootModuleCls: unknown,
+  rootModuleCls: Type<unknown>,
   queueName: string,
   callback?: (app: INestApplicationContext) => Promise<void> | void,
 ): Promise<INestMicroservice> {

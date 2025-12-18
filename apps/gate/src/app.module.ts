@@ -8,6 +8,7 @@ import { AsyncStatusCodeInterceptor, LoggingModule, TraceIdHttpModule } from '@a
 
 import { AuthModule } from './auth/auth.module'
 import { JwtAuthGuard } from './auth/utils'
+import { MessageModule } from './message/message.module'
 import { UserModule } from './user/user.module'
 import { JsonBodyMiddleware } from './utils/json-body.middleware'
 
@@ -33,16 +34,17 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
         JWT_AUTH_EXPIRE: Joi.string().required(),
         JWT_AUTH_SECRET: Joi.string().required(),
         // MINIO
-        MINIO_ENDPOINT: Joi.string().required(),
-        MINIO_PORT: Joi.number().required(),
-        ACCESS_KEY: Joi.string().required(),
-        SECRET_KEY: Joi.string().required(),
+        // MINIO_ENDPOINT: Joi.string().required(),
+        // MINIO_PORT: Joi.number().required(),
+        // ACCESS_KEY: Joi.string().required(),
+        // SECRET_KEY: Joi.string().required(),
       }),
     }),
     TraceIdHttpModule,
     LoggingModule,
     AuthModule,
     UserModule,
+    MessageModule,
   ],
   providers: [
     {
