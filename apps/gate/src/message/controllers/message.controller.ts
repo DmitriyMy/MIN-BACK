@@ -35,8 +35,7 @@ import {
 import { IUserDB } from '@app/types/User'
 import { JwtAuthGuard, ReqUser } from '../../auth/utils'
 import * as DTO from '../dto'
-import { MessageUpdateDtoRequest } from '../dto/messageUpdate.dto.request'
-import { MessageUpdateStatusDtoRequest } from '../dto/messageUpdateStatus.dto.request'
+import { GetMessagesByChatIdDtoRequest, MessageUpdateDtoRequest, MessageUpdateStatusDtoRequest } from '../dto/index'
 
 @ApiTags('MessageController')
 @ApiBearerAuth()
@@ -101,14 +100,12 @@ export class MessageController {
   public async getMessagesByChatId(
     @ReqUser() user: IUserDB,
     @Param('chatId') chatId: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query() query: GetMessagesByChatIdDtoRequest,
   ) {
     const requestData: IGetMessagesByChatRequest = {
+      ...query,
       chatId,
-      senderId: user.userId,
-      page: Number(page),
-      limit: Number(limit),
+      participant: user.userId,
     }
 
     this.logger.debug({ '[getMessagesByChatId]': { requestData } })

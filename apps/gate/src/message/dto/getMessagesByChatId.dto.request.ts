@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator'
-import { SenderId } from '@app/types/Chat'
 import { ChatId, IGetMessagesByChatRequest } from '@app/types/Message'
+import { UserId } from '@app/types/User'
 
 export class GetMessagesByChatIdDtoRequest implements IGetMessagesByChatRequest {
   @ApiProperty({
@@ -21,7 +21,7 @@ export class GetMessagesByChatIdDtoRequest implements IGetMessagesByChatRequest 
   })
   @IsOptional()
   @IsString()
-  senderId: SenderId
+  participant: UserId
 
   @ApiProperty({
     type: Number,

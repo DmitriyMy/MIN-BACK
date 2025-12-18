@@ -9,12 +9,12 @@ import {
   IGetMessageRequest,
   IMessageCreateResponse,
   IMessageDB,
-  IMessageListResponse,
   IMessageService,
   IMessageUpdateRequest,
   IMessageUpdateResponse,
   IMessageUpdateStatusRequest,
   IMessageUpdateStatusResponse,
+  MultipleMessageResponse,
   SingleMessageResponse,
 } from '@app/types/Message'
 
@@ -72,8 +72,11 @@ export class MessageService implements IMessageService {
     }
   }
 
-  public async getMessagesByChatId(params: DTO.GetMessagesByChatIdRequestDto): ServiceResponse<IMessageListResponse> {
+  public async getMessagesByChatId(
+    params: DTO.GetMessagesByChatIdRequestDto,
+  ): ServiceResponse<MultipleMessageResponse> {
     this.logger.debug({ '[getMessagesByChatId]': { params } })
+    // Реализовать проверку для ChatParticipant
 
     const { chatId, limit = 20, page = 1 } = params
 
@@ -97,11 +100,8 @@ export class MessageService implements IMessageService {
 
     return {
       data: {
-        messages: serializedMessages,
-        total,
-        page,
-        limit,
-        hasMore: page < Math.ceil(total / limit),
+        items: serializedMessages,
+        count: total,
       },
       status: HttpStatus.OK,
     }
