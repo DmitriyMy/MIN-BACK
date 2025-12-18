@@ -1,21 +1,19 @@
-import { IsString, IsOptional, IsArray, IsEnum, IsInt } from 'class-validator'
+import { IsString, IsOptional, IsArray, IsEnum } from 'class-validator'
 import { ChatType } from '@app/constants/chat'
-import { ICreateChatRequest } from '@app/types/Chat'
 
-export class CreateChatRequestDto implements ICreateChatRequest {
+export class CreateChatRequestDto {
   @IsString()
-  public name: string
+  name: string
 
   @IsOptional()
   @IsString()
-  public description?: string
+  description?: string
 
   @IsOptional()
-  @IsInt()
   @IsEnum(ChatType)
-  public type?: ChatType
+  type?: ChatType
 
   @IsArray()
   @IsString({ each: true })
-  public participants: string[]
+  participants: string[]
 }

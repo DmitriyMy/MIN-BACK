@@ -1,16 +1,16 @@
-import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common'
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
-import { ChatType } from '@app/constants/chat'
+
 import { Chat, ChatParticipant } from '@app/entitiesPG'
 import { ServiceResponse } from '@app/types/Service'
-import { IChatService, ICreateChatRequest } from '@app/types/Chat'
+import { ChatType } from '@app/constants/chat'
 
-import { CreateChatRequestDto } from '../dto'
+import * as DTO from '../dto'
 import { dataSourceName } from '../../config/postgresql.config'
 
 @Injectable()
-export class ChatService implements IChatService {
+export class ChatService {
   private logger = new Logger(ChatService.name)
 
   @InjectRepository(Chat, dataSourceName)
@@ -19,70 +19,118 @@ export class ChatService implements IChatService {
   @InjectRepository(ChatParticipant, dataSourceName)
   private readonly chatParticipantRepository: Repository<ChatParticipant>
 
-  public async createChat(params: CreateChatRequestDto): Promise<ServiceResponse<any>> {
+  public async createChat(params: DTO.CreateChatRequestDto): ServiceResponse<any> {
     this.logger.debug({ '[createChat]': { params } })
 
-    const { name, description, participants, type = ChatType.PRIVATE } = params
+    const { name, participants, type = ChatType.PRIVATE } = params
 
-    if (!participants || participants.length === 0) {
-      throw new HttpException('Chat must have at least one participant', HttpStatus.BAD_REQUEST)
-    }
+    const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    const creatorId = participants[0]
-    if (!creatorId) {
-      throw new HttpException('Creator ID is required', HttpStatus.BAD_REQUEST)
-    }
+    const chatParticipants = participants.map(userId => {
+      const participant = new ChatParticipant()
+      participant.chatId = chatId
+      participant.userId = userId
+      return participant
+    })
 
-    try {
-      // Создаем чат
-      const chat = new Chat()
-      chat.chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`  // Генерируем chatId
-      chat.creator = creatorId
-      chat.senderId = creatorId
-      chat.type = type
+    await this.chatParticipantRepository.save(chatParticipants)
 
-      // Используем правильные имена полей из сущности
-      chat.text = description
-        ? `Chat "${name}" created: ${description}`
-        : `Chat "${name}" created`
-      chat.status = 'sent'  // <--- Просто строка 'sent'
+    const firstMessage = new Chat()
+    firstMessage.chatId = chatId
+    firstMessage.senderId = participants[0]
+    firstMessage.creator = participants[0]
+    firstMessage.type = type
+    firstMessage.text = `Chat "${name}" created`
+    firstMessage.status = 'sent'
 
-      const savedChat = await this.chatRepository.save(chat)
-      this.logger.debug({ '[createChat] chat saved': { chatId: savedChat.chatId } })
+    await this.chatRepository.save(firstMessage)
 
-      // Создаем участников
-      const chatParticipants = participants.map(userId => {
-        const participant = new ChatParticipant()
-        participant.chatId = savedChat.chatId
-        participant.userId = userId
-        return participant
-      })
+    this.logger.debug({ '[createChat]': { firstMessage } })
 
-      await this.chatParticipantRepository.save(chatParticipants)
-      this.logger.debug({
-        '[createChat] participants saved': {
-          count: chatParticipants.length
+    return {
+      data: {
+        chat: {
+          id: chatId,
+          name,
+          type,
+          participants,
+          createdAt: firstMessage.createdAt
         }
-      })
+      },
+      status: HttpStatus.CREATED
+    }
+  }
 
-      return {
-        data: {
-          chat: {
-            id: savedChat.chatId,
-            name,
-            description,
-            type,
-            participants,
-            creator: creatorId,
-            createdAt: savedChat.createdAt
-          }
-        },
-        status: HttpStatus.CREATED
-      }
+  public async sendMessage(params: DTO.SendMessageRequestDto): ServiceResponse<any> {
+    this.logger.debug({ '[sendMessage]': { params } })
 
-    } catch (error) {
-      this.logger.error({ '[createChat] error': error })
-      throw new HttpException('Failed to create chat', HttpStatus.INTERNAL_SERVER_ERROR)
+    const { chatId, senderId, content } = params
+
+    const participant = await this.chatParticipantRepository.findOneBy({
+      chatId,
+      userId: senderId
+    })
+
+    this.logger.debug({ '[sendMessage]': { participant } })
+
+    if (!participant) {
+      throw new HttpException(
+        'User is not a participant of this chat',
+        HttpStatus.FORBIDDEN
+      )
+    }
+
+    const message = new Chat()
+    message.chatId = chatId
+    message.senderId = senderId
+    message.creator = senderId
+    message.text = content
+    message.type = ChatType.PRIVATE
+    message.status = 'sent'
+
+    await this.chatRepository.save(message)
+
+    this.logger.debug({ '[sendMessage]': { message } })
+
+    return {
+      data: {
+        message: {
+          id: message.id,
+          chatId: message.chatId,
+          senderId: message.senderId,
+          text: message.text,
+          status: message.status,
+          createdAt: message.createdAt
+        }
+      },
+      status: HttpStatus.OK
+    }
+  }
+
+  public async getChatMessages(params: { chatId: string }): ServiceResponse<any> {
+    this.logger.debug({ '[getChatMessages]': { params } })
+
+    const { chatId } = params
+
+    const messages = await this.chatRepository.find({
+      where: { chatId },
+      order: { createdAt: 'DESC' }
+    })
+
+    this.logger.debug({ '[getChatMessages]': { messages } })
+
+    return {
+      data: {
+        messages: messages.map(msg => ({
+          id: msg.id,
+          chatId: msg.chatId,
+          senderId: msg.senderId,
+          text: msg.text,
+          status: msg.status,
+          createdAt: msg.createdAt
+        }))
+      },
+      status: HttpStatus.OK
     }
   }
 }

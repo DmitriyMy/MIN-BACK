@@ -1,13 +1,13 @@
-export const CHAT_QUEUE = 'chat'
+export const CHAT_QUEUE = 'Chat'
 
-export enum ChatType {
-    PRIVATE = 1,
-    GROUP = 2,
-    CHANNEL = 3
+export enum chatStatus {
+    sent = 'sent',
+    delivered = 'delivered',
+    read = 'read',
 }
+export enum ChatType {
+  PRIVATE = 'private',
+  GROUP = 'group',
+  CHANNEL = 'channel'
 
-export enum ChatStatus {
-    SENT = 1,
-    DELIVERED = 2,
-    READ = 3
 }
