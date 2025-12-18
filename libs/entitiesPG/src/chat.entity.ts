@@ -1,19 +1,12 @@
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
 import { ChatType } from '@app/constants/chat'
 import { MessageStatus } from '@app/constants/message'
-import { IChatDB } from '@app/types/Chat'
+import { ChatId, IChatDB, SenderId } from '@app/types/Chat'
 
 @Entity('chats')
 export class Chat extends BaseEntity implements IChatDB {
   @PrimaryGeneratedColumn('uuid')
-  id: string
-
-  @Column({
-    type: 'uuid',
-    nullable: false,
-    name: 'chat_id',
-  })
-  chatId: string
+  chatId: ChatId
 
   @Column({
     type: 'uuid',
@@ -26,26 +19,25 @@ export class Chat extends BaseEntity implements IChatDB {
     nullable: false,
     name: 'sender_id',
   })
-  senderId: string
+  senderId: SenderId
 
   @Column({
-    type: 'enum',
-    enum: ChatType,
+    type: 'smallint',
     default: ChatType.PRIVATE,
   })
   type: ChatType
 
   @Column({
-    type: 'text',
-    nullable: false,
+    type: 'varchar',
+    default: '',
   })
-  text: string
+  message: string
 
   @Column({
-    type: 'varchar',
-    default: 'sent',
+    type: 'smallint',
+    default: MessageStatus.sent,
   })
-  status: string
+  messageStatus: MessageStatus
 
   @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   createdAt: Date
