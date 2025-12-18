@@ -26,6 +26,13 @@ export interface IGetMessageRequest {
   senderId: SenderId
 }
 
+export interface IGetMessagesByChatRequest {
+  chatId: ChatId
+  senderId?: SenderId
+  limit?: number
+  page?: number
+}
+
 export interface IMessageUpdateRequest {
   message: string
   messageId: MessageId
@@ -49,6 +56,14 @@ export interface CreateMessageSuccessResponse extends ISuccessResponse {
   message: string
 }
 
+export type IMessageListResponse = Response<{
+  messages: IMessageDB[]
+  total: number
+  page?: number
+  limit?: number
+  hasMore: boolean
+}>
+
 export type IMessageCreateResponse = Response<{ message: IMessageDB }>
 
 export type IMessageUpdateResponse = Response<{ message: IMessageDB }>
@@ -62,6 +77,10 @@ export abstract class IMessageService {
    * Message
    */
   getMessage(_request: IGetMessageRequest): ServiceResponse<SingleMessageResponse> {
+    throw new NotImplementedException()
+  }
+
+  getMessagesByChatId(_request: IGetMessagesByChatRequest): ServiceResponse<IMessageListResponse> {
     throw new NotImplementedException()
   }
 

@@ -3,6 +3,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices'
 
 import {
   IMessageCreateResponse,
+  IMessageListResponse,
   IMessageService,
   IMessageUpdateRequest,
   IMessageUpdateResponse,
@@ -26,6 +27,16 @@ export class MessageController implements Pick<IMessageService, 'createMessage'>
     this.logger.debug({ '[messageCreate]': { payload } })
     const response = await this.messageService.createMessage(payload)
     this.logger.debug({ '[messageCreate]': { response } })
+    return response
+  }
+
+  @MessagePattern('getMessagesByChatId')
+  public async getMessagesByChatId(
+    @Payload() payload: DTO.GetMessagesByChatIdRequestDto,
+  ): ServiceResponse<IMessageListResponse> {
+    this.logger.debug({ '[getMessagesByChatId]': { payload } })
+    const response = await this.messageService.getMessagesByChatId(payload)
+    this.logger.debug({ '[getMessagesByChatId]': { response } })
     return response
   }
 

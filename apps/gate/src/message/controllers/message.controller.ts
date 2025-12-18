@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
   VERSION_NEUTRAL,
 } from '@nestjs/common'
@@ -18,12 +19,14 @@ import {
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger'
 
 import { commonError } from '@app/errors'
 import {
   IGetMessageRequest,
+  IGetMessagesByChatRequest,
   IMessageService,
   IMessageUpdateRequest,
   IMessageUpdateStatusRequest,
@@ -77,6 +80,44 @@ export class MessageController {
     return response
   }
 
+  @Get()
+  @ApiOperation({ summary: 'Get messages by chat ID' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Номер страницы',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Сообщений на странице (макс 50)',
+    example: 20,
+  })
+  @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
+  @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
+  public async getMessagesByChatId(
+    @ReqUser() user: IUserDB,
+    @Param('chatId') chatId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    const requestData: IGetMessagesByChatRequest = {
+      chatId,
+      senderId: user.userId,
+      page: Number(page),
+      limit: Number(limit),
+    }
+
+    this.logger.debug({ '[getMessagesByChatId]': { requestData } })
+    const response = await this.messageService.getMessagesByChatId(requestData)
+    this.logger.debug({ '[getMessagesByChatId]': { response } })
+
+    return response
+  }
+
   @Put()
   @ApiOperation({ summary: 'Update message data' })
   @ApiBody({ type: MessageUpdateDtoRequest })
@@ -88,7 +129,6 @@ export class MessageController {
     @Body() body: DTO.MessageUpdateDtoRequest,
   ) {
     const updateData: IMessageUpdateRequest = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       message: body.message,
       messageId,
       senderId: user.userId,
@@ -111,7 +151,6 @@ export class MessageController {
     @Body() body: DTO.MessageUpdateStatusDtoRequest,
   ) {
     const updateData: IMessageUpdateStatusRequest = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       messageStatus: body.messageStatus,
       messageId,
       senderId: user.userId,
