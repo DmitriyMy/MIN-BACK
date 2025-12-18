@@ -37,7 +37,7 @@
         "tsConfigPath": "apps/user/tsconfig.app.json"
       }
     },
-    "messages": {
+    "message": {
       "type": "application",
       "root": "apps/message",
       "entryFile": "main",

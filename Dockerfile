@@ -1,4 +1,4 @@
-FROM node:18-alpine as build
+FROM node:24-alpine as build
 ARG SERVICE_NAME=gate
 WORKDIR /app
 
@@ -9,7 +9,7 @@ RUN npm install -g pnpm @nestjs/cli && \
 
 RUN nest build $SERVICE_NAME
 
-FROM node:18-alpine
+FROM node:24-alpine
 WORKDIR /app
 ARG SERVICE_NAME=gate
 COPY --from=build /app/node_modules ./node_modules

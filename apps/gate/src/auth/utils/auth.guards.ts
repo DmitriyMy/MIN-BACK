@@ -20,9 +20,9 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true)
 export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
   constructor(
     private reflector: Reflector,
-    @Inject(JwtService) private readonly jwtService: JwtService,
-    @Inject(ConfigService) private readonly configService: ConfigService,
-    @Inject(IUserService) private readonly userService: IUserService,
+    // @Inject(JwtService) private readonly jwtService: JwtService,
+    // @Inject(ConfigService) private readonly configService: ConfigService,
+    // @Inject(IUserService) private readonly userService: IUserService,
   ) {
     super()
   }
@@ -39,67 +39,67 @@ export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
     const contextType = context.getType()
 
     if (contextType === 'ws') {
-      return this.handleWebSocket(context)
+      // return this.handleWebSocket(context)
     }
 
     // Note: also set "request.user" field
     return super.canActivate(context)
   }
 
-  private async handleWebSocket(context: ExecutionContext): Promise<boolean> {
-    const client = context.switchToWs().getClient<Socket & { user?: IUserDB; userId?: string }>()
+  // private async handleWebSocket(context: ExecutionContext): Promise<boolean> {
+  //   const client = context.switchToWs().getClient<Socket & { user?: IUserDB; userId?: string }>()
 
-    try {
-      const token = JwtAuthGuard.extractTokenFromWebSocket(client)
+  //   try {
+  //     const token = JwtAuthGuard.extractTokenFromWebSocket(client)
 
-      if (!token) {
-        throw new WsException('No token provided')
-      }
+  //     if (!token) {
+  //       throw new WsException('No token provided')
+  //     }
 
-      const user = await this.validateWebSocketToken(token)
+  //     const user = await this.validateWebSocketToken(token)
 
-      client.user = user
-      client.userId = user.userId
+  //     client.user = user
+  //     client.userId = user.userId
 
-      return true
-    } catch (error) {
-      if (error instanceof WsException) {
-        throw error
-      }
-      throw new WsException('Authentication failed')
-    }
-  }
+  //     return true
+  //   } catch (error) {
+  //     if (error instanceof WsException) {
+  //       throw error
+  //     }
+  //     throw new WsException('Authentication failed')
+  //   }
+  // }
 
-  private static extractTokenFromWebSocket(client: Socket): string | null {
-    const authHeader = client.handshake.headers.authorization
-    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-      return authHeader.substring(7)
-    }
+  // private static extractTokenFromWebSocket(client: Socket): string | null {
+  //   const authHeader = client.handshake.headers.authorization
+  //   if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+  //     return authHeader.substring(7)
+  //   }
 
-    return null
-  }
+  //   return null
+  // }
 
-  private async validateWebSocketToken(token: string) {
-    try {
-      const secret = this.configService.get<string>('JWT_AUTH_SECRET')
-      const tokenPayload = this.jwtService.verify<TokenPayload>(token, { secret })
+  // private async validateWebSocketToken(token: string) {
+  //   try {
+  //     const secret = this.configService.get<string>('JWT_AUTH_SECRET')
+  //     const tokenPayload = this.jwtService.verify<TokenPayload>(token, { secret })
 
-      const { userId } = tokenPayload.user
-      const readUserResponse = await this.userService.getUser({ userId })
+  //     const { userId } = tokenPayload.user
+  //     const readUserResponse = await this.userService.getUser({ userId })
 
-      if (isErrorServiceResponse(readUserResponse)) {
-        throw new WsException('User not found')
-      }
+  //     if (isErrorServiceResponse(readUserResponse)) {
+  //       throw new WsException('User not found')
+  //     }
 
-      const { user } = readUserResponse.data
-      return user
-    } catch (error) {
-      if (error instanceof WsException) {
-        throw error
-      }
-      throw new WsException('Invalid token')
-    }
-  }
+  //     const { user } = readUserResponse.data
+  //     return user
+  //   } catch (error) {
+  //     if (error instanceof WsException) {
+  //       throw error
+  //     }
+  //     throw new WsException('Invalid token')
+  //   }
+  // }
 }
 
 @Injectable()

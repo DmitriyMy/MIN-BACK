@@ -22,10 +22,18 @@ import {
 } from '@nestjs/swagger'
 
 import { commonError } from '@app/errors'
-import { IGetMessageRequest, IMessageService, IMessageUpdateRequest, MessageId } from '@app/types/Message'
+import {
+  IGetMessageRequest,
+  IMessageService,
+  IMessageUpdateRequest,
+  IMessageUpdateStatusRequest,
+  MessageId,
+} from '@app/types/Message'
 import { IUserDB } from '@app/types/User'
 import { JwtAuthGuard, ReqUser } from '../../auth/utils'
 import * as DTO from '../dto'
+import { MessageUpdateDtoRequest } from '../dto/messageUpdate.dto.request'
+import { MessageUpdateStatusDtoRequest } from '../dto/messageUpdateStatus.dto.request'
 
 @ApiTags('MessageController')
 @ApiBearerAuth()
@@ -71,16 +79,17 @@ export class MessageController {
 
   @Put()
   @ApiOperation({ summary: 'Update message data' })
-  @ApiBody({ type: DTO.MessageUpdateDtoRequest })
+  @ApiBody({ type: MessageUpdateDtoRequest })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async updateMessage(
     @ReqUser() user: IUserDB,
     @Param('messageId') messageId: MessageId,
-    @Body() body: IMessageUpdateRequest,
+    @Body() body: DTO.MessageUpdateDtoRequest,
   ) {
     const updateData: IMessageUpdateRequest = {
-      ...body,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      message: body.message,
       messageId,
       senderId: user.userId,
     }
@@ -88,22 +97,22 @@ export class MessageController {
     this.logger.debug({ '[updateMessage]': { updateData } })
     const response = await this.messageService.updateMessage(updateData)
     this.logger.debug({ '[updateMessage]': { response } })
-
     return response
   }
 
   @Patch()
   @ApiOperation({ summary: 'Update message status' })
-  @ApiBody({ type: DTO.MessageUpdateStatusDtoRequest })
+  @ApiBody({ type: MessageUpdateStatusDtoRequest })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async updateMessageStatus(
     @ReqUser() user: IUserDB,
     @Param('messageId') messageId: MessageId,
-    @Body() body: Omit<DTO.MessageUpdateStatusDtoRequest, 'messageId' | 'senderId'>,
+    @Body() body: DTO.MessageUpdateStatusDtoRequest,
   ) {
-    const updateData = {
-      ...body,
+    const updateData: IMessageUpdateStatusRequest = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      messageStatus: body.messageStatus,
       messageId,
       senderId: user.userId,
     }

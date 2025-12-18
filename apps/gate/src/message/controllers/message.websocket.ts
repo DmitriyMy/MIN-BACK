@@ -15,7 +15,7 @@ import {
   IGetMessageRequest,
   IMessageCreateRequest,
   IMessageService,
-  IUpdateMessageRequest,
+  IMessageUpdateRequest,
   MessageId,
 } from '@app/types/Message'
 import { IUserDB } from '@app/types/User'
@@ -106,7 +106,7 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
   @SubscribeMessage('updateMessage')
   async handleUpdateMessage(
     @ConnectedSocket() client: Socket & { user?: IUserDB },
-    @MessageBody() data: { messageId: MessageId; message?: string },
+    @MessageBody() data: { messageId: MessageId; message: string },
     @WsUser() user: IUserDB,
   ) {
     if (!data?.messageId) {
@@ -114,10 +114,10 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
       return
     }
 
-    const updateData: IUpdateMessageRequest = {
+    const updateData: IMessageUpdateRequest = {
       messageId: data.messageId,
       senderId: user.userId,
-      ...(data.message && { message: data.message }),
+      message: data.message,
     }
 
     this.logger.debug({ '[handleUpdateMessage]': { updateData } })
