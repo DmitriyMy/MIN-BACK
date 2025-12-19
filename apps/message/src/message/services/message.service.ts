@@ -95,12 +95,10 @@ export class MessageService implements IMessageService {
         page,
       },
     })
-
-    const serializedMessages = messages.map((msg) => MessageService.serialize(msg))
-
+    
     return {
       data: {
-        items: serializedMessages,
+        items: MessageService.serialize(messages),
         count: total,
       },
       status: HttpStatus.OK,
