@@ -37,7 +37,7 @@ export class SignUpDtoRequest implements ISignUpUserRequest {
     nullable: false,
   })
   @IsString()
-  surname: string = ''
+  surname = ''
 
   @ApiProperty({
     type: String,
@@ -47,5 +47,5 @@ export class SignUpDtoRequest implements ISignUpUserRequest {
   })
   @IsString()
   @IsOptional()
-  phone: string = ''
+  phone = ''
 }

@@ -88,7 +88,6 @@ export class MessageController {
     @Body() body: DTO.MessageUpdateDtoRequest,
   ) {
     const updateData: IMessageUpdateRequest = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       message: body.message,
       messageId,
       senderId: user.userId,
@@ -111,7 +110,6 @@ export class MessageController {
     @Body() body: DTO.MessageUpdateStatusDtoRequest,
   ) {
     const updateData: IMessageUpdateStatusRequest = {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       messageStatus: body.messageStatus,
       messageId,
       senderId: user.userId,
