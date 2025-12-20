@@ -19,9 +19,14 @@ async function bootstrap() {
   const logger = app.get(PinoLoggerService)
   app.useLogger(logger)
 
+  // Настройка CORS - поддерживает несколько origins через запятую
+  const corsOrigin = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? true,
+    origin: corsOrigin,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Version'],
   })
 
   app.useGlobalPipes(

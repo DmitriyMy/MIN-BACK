@@ -1,5 +1,5 @@
 import { NotImplementedException } from '@nestjs/common'
-import { UserRole } from '@app/constants/user'
+import { UserRole, UserStatus } from '@app/constants/user'
 import { PartialPaginationWithSortDirectionRequest } from './Pagination'
 import { EmptyResponse, MultipleResponse, Response, ServiceResponse } from './Service'
 
@@ -21,6 +21,8 @@ export interface IUserDB {
   consent: string
   role: UserRole
   description: string
+  avatar: string
+  status: UserStatus
 }
 
 /**

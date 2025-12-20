@@ -12,7 +12,13 @@ export class SocketIoAdapter extends IoAdapter {
   }
 
   createIOServer(port: number, options?: ServerOptions): Server {
-    const origin = this.corsOrigin ?? process.env.CORS_ORIGIN?.split(',') ?? '*'
+    let origin: string | string[] | boolean = '*'
+
+    if (this.corsOrigin) {
+      origin = Array.isArray(this.corsOrigin) ? this.corsOrigin : [this.corsOrigin]
+    } else if (process.env.CORS_ORIGIN) {
+      origin = process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return super.createIOServer(port, {
@@ -20,6 +26,8 @@ export class SocketIoAdapter extends IoAdapter {
       cors: {
         origin,
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Version'],
       },
       transports: ['websocket', 'polling'],
       pingTimeout: 60000,

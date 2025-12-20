@@ -5,3 +5,8 @@ export enum UserRole {
   guest = 'guest',
   moderator = 'moderator',
 }
+
+export enum UserStatus {
+  available = 'available',
+  blocked = 'blocked',
+}

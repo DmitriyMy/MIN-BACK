@@ -1,7 +1,7 @@
 import { Exclude } from 'class-transformer'
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm'
 
-import { UserRole } from '@app/constants/user'
+import { UserRole, UserStatus } from '@app/constants/user'
 import { IUserDB, UserId } from '@app/types/User'
 
 @Entity('users')
@@ -80,6 +80,20 @@ export class User extends BaseEntity implements IUserDB {
     default: UserRole.person,
   })
   public role: UserRole
+
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    default: '',
+  })
+  avatar: string
+
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    default: UserStatus.available,
+  })
+  status: UserStatus
 
   @CreateDateColumn({ type: 'timestamp with time zone', name: 'created_at' })
   createdAt: Date

@@ -12,6 +12,7 @@ import { IUserService } from '@app/types/User'
 import { AuthModule } from './auth/auth.module'
 import { JwtAuthGuard } from './auth/utils'
 import { CallModule } from './call/call.module'
+import { ChatModule } from './chat/chat.module'
 import { MessageModule } from './message/message.module'
 import { UserRpcModule } from './user/user-rpc.module'
 import { UserModule } from './user/user.module'
@@ -64,6 +65,7 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
     AuthModule,
     UserModule,
     MessageModule,
+    ChatModule,
     CallModule,
   ],
   providers: [

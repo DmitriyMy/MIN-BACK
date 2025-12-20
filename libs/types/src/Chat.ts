@@ -1,7 +1,9 @@
+import { NotImplementedException } from '@nestjs/common'
 import { ChatType } from '@app/constants/chat'
 
 import { UserId } from '@app/types/User'
 import { IMessageDB } from './Message'
+import { Response, ServiceResponse } from './Service'
 
 export type ChatId = string
 export type SenderId = UserId
@@ -15,17 +17,29 @@ export interface IChatDB extends Pick<IMessageDB, 'chatId' | 'senderId' | 'messa
   createdAt: Date
 }
 
+/**
+ * Request: Chat
+ */
+export interface IChatCreateRequest {
+  creator: UserId
+  type: ChatType
+  message?: string
+}
+
+/**
+ * Response: Chat
+ */
+export type IChatCreateResponse = Response<{ chat: IChatDB }>
+export type SingleChatResponse = Response<{ chat: IChatDB }>
+
+/**
+ * Services
+ */
 export abstract class IChatService {
   /**
    * Chat
    */
-  //   signUpUser(_request: ISignUpUserRequest): ServiceResponse<SignUpUserResponse> {
-  //     throw new NotImplementedException()
-  //   }
-  //   signInUser(_request: ISignInUserRequest): ServiceResponse<SingleUserResponse> {
-  //     throw new NotImplementedException()
-  //   }
-  //   restorePassword(_request: RestorePasswordRequest): ServiceResponse<EmptyResponse> {
-  //     throw new NotImplementedException()
-  //   }
+  createChat(_request: IChatCreateRequest): ServiceResponse<IChatCreateResponse> {
+    throw new NotImplementedException()
+  }
 }

@@ -1,0 +1,24 @@
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Установка глобальных зависимостей
+RUN npm install -g pnpm @nestjs/cli
+
+# Копирование файлов зависимостей
+COPY package*.json ./
+COPY pnpm-lock.yaml* ./
+COPY nest-cli.json tsconfig*.json ./
+
+# Установка зависимостей
+RUN pnpm install
+
+# Копирование исходного кода
+COPY . .
+
+# Открываем порты для разных сервисов
+EXPOSE 3000 3001 3003 3004 3005
+
+# Команда по умолчанию (будет переопределена в docker-compose)
+CMD ["node", "runner.js", "dev"]
+
