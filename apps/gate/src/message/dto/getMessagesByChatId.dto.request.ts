@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger'
 import { IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
+import { uuidV4 } from 'ethers'
 import { ChatId, IGetMessagesByChatRequest } from '@app/types/Message'
 import { UserId } from '@app/types/User'
-import { uuidV4 } from 'ethers'
 
 export class GetMessagesByChatIdDtoRequest implements IGetMessagesByChatRequest {
   @ApiProperty({
@@ -22,7 +22,7 @@ export class GetMessagesByChatIdDtoRequest implements IGetMessagesByChatRequest 
   })
   @IsOptional()
   @IsString()
-  participant: UserId
+  participant?: UserId
 
   @ApiProperty({
     type: Number,
@@ -32,7 +32,7 @@ export class GetMessagesByChatIdDtoRequest implements IGetMessagesByChatRequest 
   })
   @IsNumber()
   @Min(1)
-  page: number = 1
+  page = 1
 
   @ApiProperty({
     type: Number,
@@ -43,5 +43,5 @@ export class GetMessagesByChatIdDtoRequest implements IGetMessagesByChatRequest 
   @IsNumber()
   @Min(1)
   @Max(50)
-  limit: number = 20
+  limit = 20
 }
