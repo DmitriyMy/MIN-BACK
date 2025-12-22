@@ -7,6 +7,7 @@ export class GetMessagesByChatIdRequestDto implements IGetMessagesByChatRequest 
   chatId: ChatId
 
   @IsString()
+  @IsOptional()
   participant: UserId
 
   @IsOptional()
