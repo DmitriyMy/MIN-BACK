@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "outDir": "../../../dist/apps/chat"
+  },
+  "include": ["src/**/*", "../../../libs/types/src/*.d.ts", "../../../libs/entitiesPG/src/*.entity.ts"],
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+}

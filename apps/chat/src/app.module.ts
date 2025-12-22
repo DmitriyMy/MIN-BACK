@@ -1,0 +1,43 @@
+import { Module } from '@nestjs/common'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import * as Joi from 'joi'
+import { EnvironmentType, LoggerLevel } from '@app/constants/common'
+import { LoggingModule, TraceIdRmqModule } from '@app/infrastructure'
+
+import { appConfig } from './config/app.config'
+import { PostgresqlConfig, dataSourceName, postgresqlConfig } from './config/postgresql.config'
+import { ChatModule } from './chat/chat.module'
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      load: [appConfig, postgresqlConfig],
+      isGlobal: true,
+      envFilePath: [`${process.env.NODE_ENV}.env`, '.env'],
+      validationSchema: Joi.object({
+        NODE_ENV: Joi.string()
+          .required()
+          .valid(...Object.values(EnvironmentType)),
+        LOGGER_MIN_LEVEL: Joi.string()
+          .required()
+          .valid(...Object.values(LoggerLevel)),
+        PG_DB_HOST: Joi.string().required(),
+        PG_DB_PORT: Joi.number().required(),
+        PG_DB_USER: Joi.string().required(),
+        PG_DB_NAME: Joi.string().required(),
+        PG_DB_PASSWORD: Joi.string().required(),
+        NATS_URL: Joi.string().required(),
+      }),
+    }),
+    TypeOrmModule.forRootAsync({
+      name: dataSourceName,
+      useFactory: (configService: ConfigService) => configService.get<PostgresqlConfig>(dataSourceName)!,
+      inject: [ConfigService],
+    }),
+    TraceIdRmqModule,
+    LoggingModule,
+    ChatModule,
+  ],
+})
+export class AppModule {}

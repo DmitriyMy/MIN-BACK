@@ -1,31 +1,37 @@
+import { HttpStatus } from '@nestjs/common'
+import { ServiceResponse, EmptyResponse } from './Service'
 import { ChatType } from '@app/constants/chat'
 
-import { UserId } from '@app/types/User'
-import { IMessageDB } from './Message'
-
 export type ChatId = string
-export type SenderId = UserId
-/**
- * Entities
- */
+export type SenderId = string
 
-export interface IChatDB extends Pick<IMessageDB, 'chatId' | 'senderId' | 'message' | 'messageStatus'> {
-  creator: UserId
+export interface IChatDB {
+  chatId: ChatId
+  creator: string
+  senderId: SenderId
   type: ChatType
+  message: string
+  messageStatus: number
   createdAt: Date
 }
 
-export abstract class IChatService {
-  /**
-   * Chat
-   */
-  //   signUpUser(_request: ISignUpUserRequest): ServiceResponse<SignUpUserResponse> {
-  //     throw new NotImplementedException()
-  //   }
-  //   signInUser(_request: ISignInUserRequest): ServiceResponse<SingleUserResponse> {
-  //     throw new NotImplementedException()
-  //   }
-  //   restorePassword(_request: RestorePasswordRequest): ServiceResponse<EmptyResponse> {
-  //     throw new NotImplementedException()
-  //   }
+export interface ICreateChatRequest {
+  name: string
+  description?: string
+  type?: ChatType
+  participants: string[]
+}
+
+export interface CreateChatResponse extends EmptyResponse {
+  id: string
+  name: string
+  description?: string
+  type: ChatType
+  participants: string[]
+  creator: string
+  createdAt: Date
+}
+
+export interface IChatService {
+  createChat(params: ICreateChatRequest): Promise<ServiceResponse<CreateChatResponse>>
 }
