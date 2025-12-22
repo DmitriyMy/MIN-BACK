@@ -1,23 +1,21 @@
-import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator'
+import { IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
 import { ChatId, IGetMessagesByChatRequest } from '@app/types/Message'
 import { UserId } from '@app/types/User'
-
 export class GetMessagesByChatIdRequestDto implements IGetMessagesByChatRequest {
-  @IsString()
+  @IsUUID()
   chatId: ChatId
 
+  @IsOptional()
   @IsString()
   @IsOptional()
   participant: UserId
 
-  @IsOptional()
   @IsNumber()
   @Min(1)
   @Max(50)
-  public limit?: number
+  public limit: number
 
-  @IsOptional()
   @IsNumber()
   @Min(1)
-  public page?: number
+  public page: number
 }

@@ -82,30 +82,19 @@ export class MessageController {
   @Get()
   @ApiOperation({ summary: 'Get messages by chat ID' })
   @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Номер страницы',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Сообщений на странице (макс 50)',
-    example: 20,
+    type: GetMessagesByChatIdDtoRequest
   })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async getMessagesByChatId(
-    @ReqUser() user: IUserDB,
+    @ReqUser('userId') userId: string,
     @Param('chatId') chatId: string,
     @Query() query: GetMessagesByChatIdDtoRequest,
   ) {
     const requestData: IGetMessagesByChatRequest = {
       ...query,
       chatId,
-      participant: user.userId,
+      participant: userId,
     }
 
     this.logger.debug({ '[getMessagesByChatId]': { requestData } })

@@ -29,8 +29,8 @@ export interface IGetMessageRequest {
 export interface IGetMessagesByChatRequest {
   chatId: ChatId
   participant?: UserId
-  limit?: number
-  page?: number
+  limit: number
+  page: number
 }
 
 export interface IMessageUpdateRequest {
