@@ -1,7 +1,6 @@
 export const CHAT_QUEUE = 'chat'
-
 export enum ChatType {
-    PRIVATE = 1,
-    GROUP = 2,
-    CHANNEL = 3
+  PRIVATE = 121,
+  GROUP = 128,
+  CHANNEL = 828
 }

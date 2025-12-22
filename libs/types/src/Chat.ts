@@ -1,17 +1,17 @@
-import { ServiceResponse } from './Service'
+import { HttpStatus } from '@nestjs/common'
+import { ServiceResponse, EmptyResponse } from './Service'
 import { ChatType } from '@app/constants/chat'
 
 export type ChatId = string
 export type SenderId = string
 
 export interface IChatDB {
-  id: string
   chatId: ChatId
   creator: string
   senderId: SenderId
   type: ChatType
-  text: string
-  status: string
+  message: string
+  messageStatus: number
   createdAt: Date
 }
 
@@ -22,6 +22,16 @@ export interface ICreateChatRequest {
   participants: string[]
 }
 
+export interface CreateChatResponse extends EmptyResponse {
+  id: string
+  name: string
+  description?: string
+  type: ChatType
+  participants: string[]
+  creator: string
+  createdAt: Date
+}
+
 export interface IChatService {
-  createChat(params: ICreateChatRequest): Promise<ServiceResponse<any>>
+  createChat(params: ICreateChatRequest): Promise<ServiceResponse<CreateChatResponse>>
 }

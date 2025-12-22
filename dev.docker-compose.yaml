@@ -1,15 +1,11 @@
-version: "3.9"
 services:
   auth:
     container_name: auth
     env_file:
       - .env
     environment:
-      PG_DB_HOST: ${PG_DB_HOST}
-      PG_DB_PORT: ${PG_DB_PORT}
-      PG_DB_NAME: ${PG_DB_NAME}
-      PG_DB_USER: ${PG_DB_USER}
-      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_HOST: postgres
+      NATS_URL: nats://nats:4222
     build:
       context: .
       args:
@@ -19,18 +15,17 @@ services:
     ports:
       - 3001:3000
     depends_on:
-      - nats
-      - postgres
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   gate:
     container_name: gate
     env_file:
       - .env
     environment:
-      GATE_APP_HOST: ${GATE_APP_HOST}
-      GATE_APP_PORT: ${GATE_APP_PORT}
-      NODE_ENV: ${NODE_ENV}
-      RMQ_URL: ${RMQ_URL}
+      NATS_URL: nats://nats:4222
     build:
       context: .
       args:
@@ -38,7 +33,8 @@ services:
     image: docker.freefrog.tech/min/gate:dev
     restart: always
     depends_on:
-      - nats
+      nats:
+        condition: service_started
     ports:
       - 3002:3000
 
@@ -47,11 +43,8 @@ services:
     env_file:
       - .env
     environment:
-      PG_DB_HOST: ${PG_DB_HOST}
-      PG_DB_PORT: ${PG_DB_PORT}
-      PG_DB_NAME: ${PG_DB_NAME}
-      PG_DB_USER: ${PG_DB_USER}
-      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_HOST: postgres
+      NATS_URL: nats://nats:4222
     build:
       context: .
       args:
@@ -61,19 +54,18 @@ services:
     ports:
       - 3003:3000
     depends_on:
-      - nats
-      - postgres
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   message:
     container_name: message
     env_file:
       - .env
     environment:
-      PG_DB_HOST: ${PG_DB_HOST}
-      PG_DB_PORT: ${PG_DB_PORT}
-      PG_DB_NAME: ${PG_DB_NAME}
-      PG_DB_USER: ${PG_DB_USER}
-      PG_DB_PASSWORD: ${PG_DB_PASSWORD}
+      PG_DB_HOST: postgres
+      NATS_URL: nats://nats:4222
     build:
       context: .
       args:
@@ -83,23 +75,29 @@ services:
     ports:
       - 3004:3000
     depends_on:
-      - nats
-      - postgres
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
 
   postgres:
+    container_name: postgres
     image: postgres:15-alpine
     restart: always
-    env_file:
-      - example.env
     environment:
-      POSTGRES_DB: ${PG_DB_NAME}
-      POSTGRES_USER: ${PG_DB_USER}
-      POSTGRES_PASSWORD: ${PG_DB_PASSWORD}
+      POSTGRES_DB: ${PG_DB_NAME:-postgres}
+      POSTGRES_USER: ${PG_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_DB_PASSWORD:-postgres}
     command: ["postgres", "-c", "log_statement=all"]
     ports:
-      - "${PG_DB_PORT}:5432"
+      - "${PG_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   nats:
     image: nats:2.10.10

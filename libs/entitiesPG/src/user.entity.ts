@@ -26,7 +26,6 @@ export class User extends BaseEntity implements IUserDB {
   @Column({
     type: 'varchar',
     nullable: false,
-    name: 'surname',
   })
   public description: string
 

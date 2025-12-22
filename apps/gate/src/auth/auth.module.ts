@@ -4,21 +4,20 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt'
 import { PassportModule } from '@nestjs/passport'
 
 import { AUTH_QUEUE } from '@app/constants/auth'
-import { USER_QUEUE } from '@app/constants/user'
 import { RpcModule } from '@app/infrastructure'
 
 import { IAuthService } from '@app/types/Auth'
-import { IUserService } from '@app/types/User'
 
+import { UserRpcModule } from '../user/user-rpc.module'
 import { AuthController } from './controllers/auth.controller'
 import { TokenService } from './services/token.service'
-import { EmailStrategy } from './utils/email.strategy'
+import { EmailStrategy, JwtAuthGuard } from './utils'
 import { JwtStrategy } from './utils/jwt.strategy'
 
 @Module({
   imports: [
     RpcModule.register({ name: IAuthService, queueName: AUTH_QUEUE }),
-    RpcModule.register({ name: IUserService, queueName: USER_QUEUE }),
+    UserRpcModule,
     PassportModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService): JwtModuleOptions => {
@@ -33,6 +32,7 @@ import { JwtStrategy } from './utils/jwt.strategy'
     }),
   ],
   controllers: [AuthController],
-  providers: [TokenService, JwtStrategy, EmailStrategy],
+  providers: [TokenService, JwtStrategy, EmailStrategy, JwtAuthGuard],
+  exports: [JwtModule, JwtAuthGuard],
 })
 export class AuthModule {}

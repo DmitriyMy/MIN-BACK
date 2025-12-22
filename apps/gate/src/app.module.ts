@@ -1,14 +1,18 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { JwtModule, JwtModuleOptions } from '@nestjs/jwt'
 import * as Joi from 'joi'
 
 import { EnvironmentType, LoggerLevel } from '@app/constants/common'
-import { AsyncStatusCodeInterceptor, LoggingModule, TraceIdHttpModule } from '@app/infrastructure'
+import { USER_QUEUE } from '@app/constants/user'
+import { AsyncStatusCodeInterceptor, LoggingModule, RpcModule, TraceIdHttpModule } from '@app/infrastructure'
+import { IUserService } from '@app/types/User'
 
 import { AuthModule } from './auth/auth.module'
 import { JwtAuthGuard } from './auth/utils'
 import { MessageModule } from './message/message.module'
+import { UserRpcModule } from './user/user-rpc.module'
 import { UserModule } from './user/user.module'
 import { JsonBodyMiddleware } from './utils/json-body.middleware'
 
@@ -40,8 +44,22 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
         // SECRET_KEY: Joi.string().required(),
       }),
     }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService): JwtModuleOptions => {
+        const expiresIn = configService.get<string>('JWT_AUTH_EXPIRE')!
+        return {
+          secret: configService.get<string>('JWT_AUTH_SECRET')!,
+          // @ts-expect-error - expiresIn is string but JwtModuleOptions expects StringValue, which is compatible
+          signOptions: { expiresIn },
+        }
+      },
+      inject: [ConfigService],
+    }),
+    RpcModule.register({ name: IUserService, queueName: USER_QUEUE }),
     TraceIdHttpModule,
     LoggingModule,
+    UserRpcModule,
     AuthModule,
     UserModule,
     MessageModule,

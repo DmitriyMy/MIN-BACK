@@ -6,7 +6,7 @@ import { Chat, ChatParticipant } from '@app/entitiesPG'
 
 export type PostgresqlConfig = PostgresConnectionCredentialsOptions & BaseDataSourceOptions & TypeOrmModuleOptions
 
-export const dataSourceName = 'chat_postgresql'
+export const dataSourceName = 'postgresql'
 
 export const getPostgresqlConfig = (): PostgresqlConfig => ({
   type: 'postgres',

@@ -1,14 +1,12 @@
 import { Module } from '@nestjs/common'
 
-import { USER_QUEUE } from '@app/constants/user'
-import { RpcModule } from '@app/infrastructure'
-import { IUserService } from '@app/types/User'
-
+import { AuthModule } from '../auth/auth.module'
 import { UserController } from './controllers/user.controller'
 import { UserWebSocketGateway } from './controllers/user.websocket'
+import { UserRpcModule } from './user-rpc.module'
 
 @Module({
-  imports: [RpcModule.register({ name: IUserService, queueName: USER_QUEUE })],
+  imports: [UserRpcModule, AuthModule],
   controllers: [UserController],
   providers: [UserWebSocketGateway],
 })
