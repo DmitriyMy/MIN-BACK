@@ -8,6 +8,7 @@ import {
   IMessageUpdateResponse,
   IMessageUpdateStatusRequest,
   IMessageUpdateStatusResponse,
+  MultipleMessageResponse,
 } from '@app/types/Message'
 import { ServiceResponse } from '@app/types/Service'
 
@@ -26,6 +27,16 @@ export class MessageController implements Pick<IMessageService, 'createMessage'>
     this.logger.debug({ '[messageCreate]': { payload } })
     const response = await this.messageService.createMessage(payload)
     this.logger.debug({ '[messageCreate]': { response } })
+    return response
+  }
+
+  @MessagePattern('getMessagesByChatId')
+  public async getMessagesByChatId(
+    @Payload() payload: DTO.GetMessagesByChatIdRequestDto,
+  ): ServiceResponse<MultipleMessageResponse> {
+    this.logger.debug({ '[getMessagesByChatId]': { payload } })
+    const response = await this.messageService.getMessagesByChatId(payload)
+    this.logger.debug({ '[getMessagesByChatId]': { response } })
     return response
   }
 

@@ -2,7 +2,7 @@ import { NotImplementedException } from '@nestjs/common'
 import { MessageStatus } from '@app/constants/message'
 
 import { UserId } from '@app/types/User'
-import { ISuccessResponse, Response, ServiceResponse } from './Service'
+import { ISuccessResponse, MultipleResponse, Response, ServiceResponse } from './Service'
 
 export type ChatId = string
 export type MessageId = string
@@ -24,6 +24,13 @@ export interface IMessageDB {
 export interface IGetMessageRequest {
   messageId: MessageId
   senderId: SenderId
+}
+
+export interface IGetMessagesByChatRequest {
+  chatId: ChatId
+  participant?: UserId
+  limit: number
+  page: number
 }
 
 export interface IMessageUpdateRequest {
@@ -49,6 +56,8 @@ export interface CreateMessageSuccessResponse extends ISuccessResponse {
   message: string
 }
 
+export type MultipleMessageResponse = MultipleResponse<IMessageDB>
+
 export type IMessageCreateResponse = Response<{ message: IMessageDB }>
 
 export type IMessageUpdateResponse = Response<{ message: IMessageDB }>
@@ -62,6 +71,10 @@ export abstract class IMessageService {
    * Message
    */
   getMessage(_request: IGetMessageRequest): ServiceResponse<SingleMessageResponse> {
+    throw new NotImplementedException()
+  }
+
+  getMessagesByChatId(_request: IGetMessagesByChatRequest): ServiceResponse<MultipleMessageResponse> {
     throw new NotImplementedException()
   }
 

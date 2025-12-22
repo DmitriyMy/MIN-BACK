@@ -14,10 +14,12 @@ import {
   IMessageUpdateResponse,
   IMessageUpdateStatusRequest,
   IMessageUpdateStatusResponse,
+  MultipleMessageResponse,
   SingleMessageResponse,
 } from '@app/types/Message'
 
 import { ServiceResponse } from '@app/types/Service'
+import { getOffset } from '@app/utils/pagination'
 import { dataSourceName } from '../../config/postgresql.config'
 import * as DTO from '../dto'
 
@@ -66,6 +68,39 @@ export class MessageService implements IMessageService {
 
     return {
       data: { message: MessageService.serialize(message) },
+      status: HttpStatus.OK,
+    }
+  }
+
+  public async getMessagesByChatId(
+    params: DTO.GetMessagesByChatIdRequestDto,
+  ): ServiceResponse<MultipleMessageResponse> {
+    this.logger.debug({ '[getMessagesByChatId]': { params } })
+    // Реализовать проверку для ChatParticipant
+
+    const { chatId, limit = 20, page = 1 } = params
+
+    const [messages, total] = await this.messageRepository.findAndCount({
+      where: { chatId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: getOffset(page, limit),
+    })
+
+    this.logger.debug({
+      '[getMessagesByChatId]': {
+        found: messages.length,
+        total,
+        limit,
+        page,
+      },
+    })
+    
+    return {
+      data: {
+        items: MessageService.serialize(messages),
+        count: total,
+      },
       status: HttpStatus.OK,
     }
   }
