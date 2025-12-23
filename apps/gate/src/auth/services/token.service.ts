@@ -35,7 +35,7 @@ export class TokenService {
 
   public getToken(user: IUserDB): string {
     const tokenPayload: TokenPayload = {
-      user: pick(user, ['userId', 'email', 'phone', 'name', 'role']),
+      user: pick(user, ['userId', 'name']),
     }
 
     const token = this.jwtService.sign(tokenPayload)

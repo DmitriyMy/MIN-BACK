@@ -3,7 +3,7 @@ import { EmptyResponse, ErrorResponse, ISuccessResponse, Response, ServiceRespon
 import { IUserDB, SingleUserResponse } from './User'
 
 export interface TokenPayload {
-  user: Pick<IUserDB, 'userId' | 'email' | 'phone' | 'name' | 'role'>
+  user: Pick<IUserDB, 'userId' | 'name'>
 }
 
 export type TokenPayloadUser = TokenPayload['user']
