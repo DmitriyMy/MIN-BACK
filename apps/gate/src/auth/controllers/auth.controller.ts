@@ -61,7 +61,7 @@ export class AuthController {
 
     const { user }: Record<string, IUserDB> = getData(response).data
     const token = this.tokenService.getToken(user)
-    return { user, token }
+    return { token }
   }
 
   @Public()

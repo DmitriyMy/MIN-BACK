@@ -3,13 +3,12 @@ import { EmptyResponse, ErrorResponse, ISuccessResponse, Response, ServiceRespon
 import { IUserDB, SingleUserResponse } from './User'
 
 export interface TokenPayload {
-  user: Pick<IUserDB, 'userId' | 'name'>
+  user: Pick<IUserDB, 'userId' | 'name' | 'avatar'>
 }
 
 export type TokenPayloadUser = TokenPayload['user']
 
 export interface SignInSuccessResponse {
-  user: IUserDB
   token: string
 }
 
