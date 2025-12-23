@@ -1,11 +1,9 @@
-import { DataSource } from 'typeorm'
-import { Chat, ChatParticipant } from '@app/entitiesPG'
+import { config as dotenvConfig } from 'dotenv'
+import { DataSource, DataSourceOptions } from 'typeorm'
+
 import { getPostgresqlConfig } from '../postgresql.config'
 
-const config = getPostgresqlConfig()
+dotenvConfig({ path: `${process.env.NODE_ENV}.env` })
 
-export default new DataSource({
-  ...config,
-  entities: [Chat, ChatParticipant],
-})
+export default new DataSource(getPostgresqlConfig() as DataSourceOptions)
 

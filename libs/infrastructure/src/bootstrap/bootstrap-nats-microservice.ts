@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
 import { AsyncAllExceptionsFilter } from '../exception-filters'
 import { PinoLoggerService } from '../logging'
+import { RemoveTraceIdPipe } from '../trace-id/remove-trace-id.pipe'
 
 export async function bootstrapNatsMicroservice(
   rootModuleCls: Type<unknown>,
@@ -21,16 +22,14 @@ export async function bootstrapNatsMicroservice(
       },
     },
     bufferLogs: true,
-  }).catch((reason: unknown) => {
-    // eslint-disable-next-line no-console
-    console.log('[error]', reason)
-    throw reason
   })
 
   const logger = app.get(PinoLoggerService)
   app.useLogger(logger)
 
+  // Удаляем __traceId из payload ПЕРЕД валидацией
   app.useGlobalPipes(
+    new RemoveTraceIdPipe(),
     new ValidationPipe({
       whitelist: true,
       transform: true,

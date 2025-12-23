@@ -7,6 +7,7 @@ import { MessageStatus } from '@app/constants/message'
 import { Messages } from '@app/entitiesPG'
 import {
   IGetMessageRequest,
+  IGetMessagesByChatIdRequest,
   IMessageCreateResponse,
   IMessageDB,
   IMessageService,
@@ -14,6 +15,7 @@ import {
   IMessageUpdateResponse,
   IMessageUpdateStatusRequest,
   IMessageUpdateStatusResponse,
+  MessagesListResponse,
   SingleMessageResponse,
 } from '@app/types/Message'
 
@@ -66,6 +68,26 @@ export class MessageService implements IMessageService {
 
     return {
       data: { message: MessageService.serialize(message) },
+      status: HttpStatus.OK,
+    }
+  }
+
+  public async getMessagesByChatId(params: IGetMessagesByChatIdRequest): ServiceResponse<MessagesListResponse> {
+    this.logger.debug({ '[getMessagesByChatId]': { params } })
+
+    const messages = await this.messageRepository.find({
+      where: {
+        chatId: params.chatId,
+      },
+      order: {
+        createdAt: 'ASC',
+      },
+    })
+
+    this.logger.debug({ '[getMessagesByChatId]': { messagesCount: messages.length } })
+
+    return {
+      data: { messages: MessageService.serialize(messages) as IMessageDB[] },
       status: HttpStatus.OK,
     }
   }

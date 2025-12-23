@@ -23,25 +23,19 @@ export class AuthController implements Pick<IAuthService, 'signUpUser' | 'signIn
 
   @MessagePattern('signUpUser')
   public async signUpUser(@Payload() payload: DTO.SignUpUserRequestDto): ServiceResponse<SignUpUserResponse> {
-    this.logger.debug({ '[signUpUser]': { payload } })
     const response = await this.authService.signUpUser(payload as ISignUpUserRequest)
-    this.logger.debug({ '[signUpUser]': { response } })
     return response
   }
 
   @MessagePattern('signInUser')
   public async signInUser(@Payload() payload: DTO.SignInUserRequestDto): ServiceResponse<SingleUserResponse> {
-    this.logger.debug({ '[signInUser]': { payload } })
     const response = await this.authService.signInUser(payload as ISignInUserRequest)
-    this.logger.debug({ '[signInUser]': { response } })
     return response
   }
 
   @MessagePattern('restorePassword')
   public async restorePassword(@Payload() payload: DTO.RestorePasswordRequestDto): ServiceResponse<EmptyResponse> {
-    this.logger.debug({ '[restorePassword]': { payload } })
     const response = await this.authService.restorePassword(payload as RestorePasswordRequest)
-    this.logger.debug({ '[restorePassword]': { response } })
     return response
   }
 }

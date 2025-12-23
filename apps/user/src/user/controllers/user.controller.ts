@@ -16,17 +16,13 @@ export class UserController implements Pick<IUserService, 'getUser' | 'updateUse
 
   @MessagePattern('getUser')
   public async getUser(@Payload() payload: DTO.GetUserRequestDto): ServiceResponse<SingleUserResponse> {
-    this.logger.debug({ '[getUser]': { payload } })
     const response = await this.userService.getUser(payload)
-    this.logger.debug({ '[getUser]': { response } })
     return response
   }
 
   @MessagePattern('updateUser')
   public async updateUser(@Payload() payload: DTO.UpdateUserRequestDto): ServiceResponse<SingleUserResponse> {
-    this.logger.debug({ '[updateUser]': { payload } })
     const response = await this.userService.updateUser(payload)
-    this.logger.debug({ '[updateUser]': { response } })
     return response
   }
 }

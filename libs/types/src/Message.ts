@@ -26,6 +26,11 @@ export interface IGetMessageRequest {
   senderId: SenderId
 }
 
+export interface IGetMessagesByChatIdRequest {
+  chatId: ChatId
+  userId?: UserId // Опционально, для проверки доступа
+}
+
 export interface IMessageUpdateRequest {
   message: string
   messageId: MessageId
@@ -57,11 +62,17 @@ export type IMessageUpdateStatusResponse = Response<{ message: IMessageDB }>
 
 export type SingleMessageResponse = Response<{ message: IMessageDB }>
 
+export type MessagesListResponse = Response<{ messages: IMessageDB[] }>
+
 export abstract class IMessageService {
   /**
    * Message
    */
   getMessage(_request: IGetMessageRequest): ServiceResponse<SingleMessageResponse> {
+    throw new NotImplementedException()
+  }
+
+  getMessagesByChatId(_request: IGetMessagesByChatIdRequest): ServiceResponse<MessagesListResponse> {
     throw new NotImplementedException()
   }
 

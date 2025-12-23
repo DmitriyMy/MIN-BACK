@@ -40,9 +40,7 @@ export class AuthController {
   })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   public async signUpUser(@Body() body: DTO.SignUpDtoRequest): Promise<SignUpSuccessResponse> {
-    this.logger.debug({ '[signUpUser]': { body } })
     const response = await this.authService.signUpUser(body)
-    this.logger.debug({ '[signUpUser]': { response } })
 
     const { email } = getData(response).data
     return { email, success: !!email }
@@ -59,9 +57,7 @@ export class AuthController {
   })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   public async signInUser(@Body() body: DTO.SignInDtoRequest): Promise<SignInSuccessResponse> {
-    this.logger.debug({ '[signInUser]': { body } })
     const response = await this.authService.signInUser(body)
-    this.logger.debug({ '[signInUser]': { response } })
 
     const { user }: Record<string, IUserDB> = getData(response).data
     const token = this.tokenService.getToken(user)
@@ -79,7 +75,6 @@ export class AuthController {
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   public async restorePassword(@Body() body: DTO.RestorePasswordDtoRequest): Promise<ISuccessResponse> {
     const response = await this.authService.restorePassword(body)
-    this.logger.debug({ '[restorePassword]': { response } })
 
     getData(response)
 

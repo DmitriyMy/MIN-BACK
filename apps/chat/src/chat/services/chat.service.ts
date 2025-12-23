@@ -28,10 +28,10 @@ export class ChatService implements IChatService {
 
     // Используем транзакцию для атомарности операций
     const result = await this.dataSource.transaction(async (manager) => {
-      // 1. Создать запись в таблице chats
+      // Для приватного чата senderId = creator (создатель чата является отправителем)
       const chat = manager.create(Chat, {
         creator: params.creator,
-        senderId: params.creator,
+        senderId: params.creator, // Для приватного чата senderId = creator
         type: params.type,
         message: params.message || '',
         messageStatus: MessageStatus.sent,
@@ -40,13 +40,17 @@ export class ChatService implements IChatService {
       const savedChat = await manager.save(chat)
       this.logger.debug({ '[createChat]': { savedChat } })
 
-      // 2. Создать участников чата в таблице chat_participants
-      await manager.save(
+      // Для приватного чата участник: creator (создатель чата)
+      const participants = [
         manager.create(ChatParticipant, {
           chatId: savedChat.chatId,
           userId: params.creator,
         }),
-      )
+      ]
+
+      await manager.save(participants)
+      this.logger.debug({ '[createChat]': { participants } })
+
       // Получаем обновленный чат через manager
       const updatedChat = await manager.findOne(Chat, {
         where: { chatId: savedChat.chatId },

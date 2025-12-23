@@ -11,7 +11,6 @@ export const getMailConfig = async (configService: ConfigService) => {
       pass: configService.get<string>('MAIL_PASS'),
     },
   }
-  console.log(`trans`, transport)
   return {
     transport,
     defaults: {

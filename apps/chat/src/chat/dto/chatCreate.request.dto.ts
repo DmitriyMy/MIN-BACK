@@ -1,6 +1,6 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator'
 import { ChatType } from '@app/constants/chat'
-import { IChatCreateRequest, SenderId } from '@app/types/Chat'
+import { IChatCreateRequest } from '@app/types/Chat'
 import { UserId } from '@app/types/User'
 
 export class ChatCreateRequestDto implements IChatCreateRequest {

@@ -23,21 +23,36 @@ export class JwtStrategy extends PassportStrategy(Strategy, AuthStrategy.jwt) {
   }
 
   public async validate(tokenPayload: TokenPayload) {
-    this.logger.debug({ '[validate]': { tokenPayload } })
+    try {
+      const { userId } = tokenPayload.user
 
-    const { userId } = tokenPayload.user
+      if (!userId) {
+        this.logger.error({ '[validate] ERROR': { error: 'No userId in token payload', tokenPayload } })
+        throw new HttpException('Invalid token: missing userId', 401)
+      }
 
-    const readUserResponse = await this.userService.getUser({ userId })
+      const readUserResponse = await this.userService.getUser({ userId })
 
-    this.logger.debug({ '[validate]': { readUserResponse } })
+      if (isErrorServiceResponse(readUserResponse)) {
+        const { status, error } = readUserResponse
+        this.logger.error({ '[validate]': { message: 'User service error', status, serviceError: error } })
+        throw new HttpException(error.join(', '), status)
+      }
 
-    if (isErrorServiceResponse(readUserResponse)) {
-      const { status, error } = readUserResponse
-      throw new HttpException(error.join(', '), status)
+      const { user } = readUserResponse.data
+
+      if (!user) {
+        this.logger.error({ '[validate]': { error: 'User not found in response', readUserResponse } })
+        throw new HttpException('User not found', 404)
+      }
+
+      return user
+    } catch (err) {
+      this.logger.error({ '[validate]': { error: err, tokenPayload } })
+      if (err instanceof HttpException) {
+        throw err
+      }
+      throw new HttpException('Authentication failed', 401)
     }
-
-    const { user } = readUserResponse.data
-
-    return user
   }
 }

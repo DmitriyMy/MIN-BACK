@@ -14,11 +14,9 @@ export class ChatController implements Pick<IChatService, 'createChat'> {
   @Inject(ChatService)
   private readonly chatService: ChatService
 
-  @MessagePattern('chatCreate')
+  @MessagePattern('createChat')
   public async createChat(@Payload() payload: DTO.ChatCreateRequestDto): ServiceResponse<IChatCreateResponse> {
-    this.logger.debug({ '[chatCreate]': { payload } })
     const response = await this.chatService.createChat(payload)
-    this.logger.debug({ '[chatCreate]': { response } })
     return response
   }
 }

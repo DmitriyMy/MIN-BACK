@@ -23,7 +23,9 @@ import {
 
 import { commonError } from '@app/errors'
 import {
+  ChatId,
   IGetMessageRequest,
+  IGetMessagesByChatIdRequest,
   IMessageService,
   IMessageUpdateRequest,
   IMessageUpdateStatusRequest,
@@ -50,29 +52,36 @@ export class MessageController {
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async createMessage(@ReqUser() user: IUserDB, @Body() body: DTO.MessageCreateDtoRequest) {
-    this.logger.debug({ '[createMessage]': { user, body } })
-
     const requestData = {
       ...body,
       senderId: user.userId,
     }
 
     const response = await this.messageService.createMessage(requestData)
-    this.logger.debug({ '[createMessage]': { response } })
 
     return response
   }
 
-  @Get()
+  @Get(':chatId')
+  @ApiOperation({ summary: 'Get messages by chat ID' })
+  @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
+  @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
+  public async getMessagesByChatId(@ReqUser() user: IUserDB, @Param('chatId') chatId: ChatId) {
+    const requestData: IGetMessagesByChatIdRequest = { chatId, userId: user.userId }
+
+    const response = await this.messageService.getMessagesByChatId(requestData)
+
+    return response
+  }
+
+  @Get('single/:messageId')
   @ApiOperation({ summary: 'Get message data' })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
   public async getMessage(@ReqUser() user: IUserDB, @Param('messageId') messageId: MessageId) {
     const requestData: IGetMessageRequest = { messageId, senderId: user.userId }
 
-    this.logger.debug({ '[getMessage]': { requestData } })
     const response = await this.messageService.getMessage(requestData)
-    this.logger.debug({ '[getMessage]': { response } })
 
     return response
   }
@@ -93,9 +102,7 @@ export class MessageController {
       senderId: user.userId,
     }
 
-    this.logger.debug({ '[updateMessage]': { updateData } })
     const response = await this.messageService.updateMessage(updateData)
-    this.logger.debug({ '[updateMessage]': { response } })
     return response
   }
 
@@ -115,9 +122,7 @@ export class MessageController {
       senderId: user.userId,
     }
 
-    this.logger.debug({ '[updateMessageStatus]': { updateData } })
     const response = await this.messageService.updateMessageStatus(updateData)
-    this.logger.debug({ '[updateMessageStatus]': { response } })
 
     return response
   }
