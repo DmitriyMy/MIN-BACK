@@ -13,6 +13,10 @@ export const commonError = {
     status: HttpStatus.FORBIDDEN,
     error: ["You don't have access"],
   },
+  CHAT_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    error: ['Chat not found'],
+  },
   UNEXPECTED_ERROR: {
     status: 500,
     error: ['Unexpected error happened'],

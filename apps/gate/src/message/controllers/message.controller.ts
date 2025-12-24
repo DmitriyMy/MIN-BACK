@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
   VERSION_NEUTRAL,
 } from '@nestjs/common'
@@ -17,6 +18,7 @@ import {
   ApiBody,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger'
@@ -66,8 +68,18 @@ export class MessageController {
   @ApiOperation({ summary: 'Get messages by chat ID' })
   @ApiInternalServerErrorResponse({ schema: { example: commonError.INTERNAL_SERVER_ERROR } })
   @ApiForbiddenResponse({ schema: { example: commonError.DONT_ACCESS } })
-  public async getMessagesByChatId(@ReqUser() user: IUserDB, @Param('chatId') chatId: ChatId) {
-    const requestData: IGetMessagesByChatIdRequest = { chatId, userId: user.userId }
+  @ApiNotFoundResponse({ schema: { example: commonError.CHAT_NOT_FOUND } })
+  public async getMessagesByChatId(
+    @ReqUser() user: IUserDB,
+    @Param('chatId') chatId: ChatId,
+    @Query() query: DTO.GetMessagesByChatIdDtoRequest,
+  ) {
+    const requestData: IGetMessagesByChatIdRequest = {
+      chatId,
+      userId: user.userId,
+      page: query.page,
+      limit: query.limit,
+    }
 
     const response = await this.messageService.getMessagesByChatId(requestData)
 

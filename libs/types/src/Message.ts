@@ -1,8 +1,9 @@
 import { NotImplementedException } from '@nestjs/common'
 import { MessageStatus } from '@app/constants/message'
 
+import { PaginationRequest } from './Pagination'
 import { UserId } from '@app/types/User'
-import { ISuccessResponse, Response, ServiceResponse } from './Service'
+import { ISuccessResponse, MultipleResponse, Response, ServiceResponse } from './Service'
 
 export type ChatId = string
 export type MessageId = string
@@ -26,9 +27,9 @@ export interface IGetMessageRequest {
   senderId: SenderId
 }
 
-export interface IGetMessagesByChatIdRequest {
+export interface IGetMessagesByChatIdRequest extends PaginationRequest {
   chatId: ChatId
-  userId?: UserId // Опционально, для проверки доступа
+  userId: UserId // Обязательное поле для проверки доступа
 }
 
 export interface IMessageUpdateRequest {
@@ -62,7 +63,8 @@ export type IMessageUpdateStatusResponse = Response<{ message: IMessageDB }>
 
 export type SingleMessageResponse = Response<{ message: IMessageDB }>
 
-export type MessagesListResponse = Response<{ messages: IMessageDB[] }>
+export type MessagesListResponse = Response<{ messages: IMessageDB[]; count: number }>
+export type MessagesListPaginatedResponse = MultipleResponse<IMessageDB>
 
 export abstract class IMessageService {
   /**

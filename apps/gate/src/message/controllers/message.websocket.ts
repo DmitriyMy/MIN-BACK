@@ -1,4 +1,4 @@
-import { Inject, Logger, UseGuards } from '@nestjs/common'
+import { ForbiddenException, HttpException, Inject, Logger, NotFoundException, UseGuards } from '@nestjs/common'
 import {
   ConnectedSocket,
   MessageBody,
@@ -13,6 +13,7 @@ import { Server, Socket } from 'socket.io'
 import { commonError } from '@app/errors'
 import {
   IGetMessageRequest,
+  IGetMessagesByChatIdRequest,
   IMessageCreateRequest,
   IMessageService,
   IMessageUpdateRequest,
@@ -129,6 +130,49 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
     } catch (error) {
       this.logger.error({ '[handleUpdateMessage]': { error: error as Error } })
       client.emit('error', { message: commonError.INTERNAL_SERVER_ERROR })
+    }
+  }
+
+  @SubscribeMessage('getMessagesByChatId')
+  async handleGetMessagesByChatId(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: { chatId: string; page: number; limit: number },
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleGetMessagesByChatId]': { user, data } })
+
+    if (!data?.chatId) {
+      client.emit('error', { message: 'chatId is required' })
+      return
+    }
+
+    if (!data?.page || !data?.limit) {
+      client.emit('error', { message: 'page and limit are required' })
+      return
+    }
+
+    const requestData: IGetMessagesByChatIdRequest = {
+      chatId: data.chatId,
+      userId: user.userId,
+      page: data.page,
+      limit: data.limit,
+    }
+
+    try {
+      const response = await this.messageService.getMessagesByChatId(requestData)
+      this.logger.debug({ '[handleGetMessagesByChatId]': { response } })
+      client.emit('getMessagesByChatId:response', response)
+    } catch (error) {
+      this.logger.error({ '[handleGetMessagesByChatId]': { error: error as Error } })
+
+      // Проверяем тип ошибки
+      if (error instanceof NotFoundException || (error instanceof HttpException && error.getStatus() === 404)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+      } else if (error instanceof ForbiddenException || (error instanceof HttpException && error.getStatus() === 403)) {
+        client.emit('error', { message: commonError.DONT_ACCESS })
+      } else {
+        client.emit('error', { message: commonError.INTERNAL_SERVER_ERROR })
+      }
     }
   }
 }

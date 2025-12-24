@@ -4,7 +4,8 @@ import { instanceToPlain, plainToInstance } from 'class-transformer'
 import { Repository } from 'typeorm'
 
 import { MessageStatus } from '@app/constants/message'
-import { Messages } from '@app/entitiesPG'
+import { ChatParticipant, Messages } from '@app/entitiesPG'
+import { commonError } from '@app/errors'
 import {
   IGetMessageRequest,
   IGetMessagesByChatIdRequest,
@@ -20,6 +21,7 @@ import {
 } from '@app/types/Message'
 
 import { ServiceResponse } from '@app/types/Service'
+import { getOffset } from '@app/utils/pagination'
 import { dataSourceName } from '../../config/postgresql.config'
 import * as DTO from '../dto'
 
@@ -29,6 +31,9 @@ export class MessageService implements IMessageService {
 
   @InjectRepository(Messages, dataSourceName)
   private readonly messageRepository: Repository<Messages>
+
+  @InjectRepository(ChatParticipant, dataSourceName)
+  private readonly chatParticipantRepository: Repository<ChatParticipant>
 
   public async createMessage(params: DTO.MessageCreateRequestDto): ServiceResponse<IMessageCreateResponse> {
     this.logger.debug({ '[createMessage]': { params } })
@@ -75,19 +80,44 @@ export class MessageService implements IMessageService {
   public async getMessagesByChatId(params: IGetMessagesByChatIdRequest): ServiceResponse<MessagesListResponse> {
     this.logger.debug({ '[getMessagesByChatId]': { params } })
 
-    const messages = await this.messageRepository.find({
+    const { chatId, userId, page, limit } = params
+
+    // Проверяем, что пользователь является участником чата
+    const participant = await this.chatParticipantRepository.findOne({
       where: {
-        chatId: params.chatId,
-      },
-      order: {
-        createdAt: 'ASC',
+        chatId,
+        userId,
       },
     })
 
-    this.logger.debug({ '[getMessagesByChatId]': { messagesCount: messages.length } })
+    if (!participant) {
+      this.logger.warn({ '[getMessagesByChatId]': { error: 'User is not a participant', chatId, userId } })
+      throw new NotFoundException(commonError.CHAT_NOT_FOUND)
+    }
+
+    const offset = getOffset(page, limit)
+
+    const [messages, totalCount] = await this.messageRepository.findAndCount({
+      where: {
+        chatId,
+      },
+      order: {
+        createdAt: 'DESC', // От самых последних к первым
+      },
+      take: limit,
+      skip: offset,
+    })
+
+    this.logger.debug({ '[getMessagesByChatId]': { messagesCount: messages.length, totalCount } })
+
+    // Переворачиваем массив, чтобы вернуть в правильном порядке (от старых к новым для отображения)
+    const sortedMessages = messages.reverse()
 
     return {
-      data: { messages: MessageService.serialize(messages) as IMessageDB[] },
+      data: {
+        messages: MessageService.serialize(sortedMessages) as IMessageDB[],
+        count: totalCount,
+      },
       status: HttpStatus.OK,
     }
   }

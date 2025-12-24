@@ -9,8 +9,6 @@ import { ChatService } from '../services/chat.service'
 
 @Controller()
 export class ChatController implements Pick<IChatService, 'createChat' | 'getChatsByUserId'> {
-  private logger = new Logger(ChatController.name)
-
   @Inject(ChatService)
   private readonly chatService: ChatService
 
@@ -21,9 +19,10 @@ export class ChatController implements Pick<IChatService, 'createChat' | 'getCha
   }
 
   @MessagePattern('getChatsByUserId')
-  public async getChatsByUserId(@Payload() payload: DTO.GetChatsByUserIdRequestDto): ServiceResponse<ChatsListResponse> {
+  public async getChatsByUserId(
+    @Payload() payload: DTO.GetChatsByUserIdRequestDto,
+  ): ServiceResponse<ChatsListResponse> {
     const response = await this.chatService.getChatsByUserId(payload)
     return response
   }
 }
-
