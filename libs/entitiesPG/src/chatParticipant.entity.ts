@@ -12,7 +12,7 @@ export class ChatParticipant extends BaseEntity implements IChatParticipantDB {
   })
   public chatId: ChatId
 
-  @Column({
+  @PrimaryColumn({
     type: 'uuid',
     nullable: false,
     name: 'user_id',

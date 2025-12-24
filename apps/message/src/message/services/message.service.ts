@@ -5,7 +5,6 @@ import { Repository } from 'typeorm'
 
 import { MessageStatus } from '@app/constants/message'
 import { ChatParticipant, Messages } from '@app/entitiesPG'
-import { commonError } from '@app/errors'
 import {
   IGetChatParticipantsRequest,
   IGetMessageRequest,
@@ -39,6 +38,39 @@ export class MessageService implements IMessageService {
 
   public async createMessage(params: DTO.MessageCreateRequestDto): ServiceResponse<IMessageCreateResponse> {
     this.logger.debug({ '[createMessage]': { params } })
+
+    const { chatId, senderId } = params
+
+    // Проверяем, что отправитель является участником чата
+    const participant = await this.chatParticipantRepository.findOne({
+      where: {
+        chatId,
+        userId: senderId,
+      },
+    })
+
+    if (!participant) {
+      // Получаем список всех участников для отладки
+      const allParticipants = await this.chatParticipantRepository.find({
+        where: { chatId },
+        select: ['userId'],
+      })
+      const participantIds = allParticipants.map((p) => p.userId)
+
+      this.logger.warn({
+        '[createMessage]': {
+          error: 'User is not a participant',
+          chatId,
+          senderId,
+          existingParticipants: participantIds,
+          totalParticipants: participantIds.length,
+        },
+      })
+      throw new NotFoundException({
+        status: HttpStatus.NOT_FOUND,
+        error: ['Chat not found'],
+      })
+    }
 
     const createMessage = this.messageRepository.create({
       ...params,
@@ -94,7 +126,10 @@ export class MessageService implements IMessageService {
 
     if (!participant) {
       this.logger.warn({ '[getMessagesByChatId]': { error: 'User is not a participant', chatId, userId } })
-      throw new NotFoundException(commonError.CHAT_NOT_FOUND)
+      throw new NotFoundException({
+        status: HttpStatus.NOT_FOUND,
+        error: ['Chat not found'],
+      })
     }
 
     const offset = getOffset(page, limit)
@@ -223,7 +258,10 @@ export class MessageService implements IMessageService {
 
     if (!participant) {
       this.logger.warn({ '[getChatParticipants]': { error: 'User is not a participant', chatId, userId } })
-      throw new NotFoundException(commonError.CHAT_NOT_FOUND)
+      throw new NotFoundException({
+        status: HttpStatus.NOT_FOUND,
+        error: ['Chat not found'],
+      })
     }
 
     const participants = await this.chatParticipantRepository.find({

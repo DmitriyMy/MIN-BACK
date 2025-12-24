@@ -140,9 +140,20 @@ export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
   }
 
   private static extractTokenFromWebSocket(client: Socket): string | null {
+    // Проверяем токен в заголовке Authorization (Bearer token)
     const authHeader = client.handshake.headers.authorization
     if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       return authHeader.substring(7)
+    }
+
+    // Проверяем токен в auth объекте (Socket.IO auth option)
+    const authToken = client.handshake.auth?.token
+    if (authToken && typeof authToken === 'string') {
+      // Если токен уже содержит "Bearer ", убираем его
+      if (authToken.startsWith('Bearer ')) {
+        return authToken.substring(7)
+      }
+      return authToken
     }
 
     return null

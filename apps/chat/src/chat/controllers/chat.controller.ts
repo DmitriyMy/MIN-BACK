@@ -1,14 +1,14 @@
 import { Controller, Inject, Logger } from '@nestjs/common'
 import { MessagePattern, Payload } from '@nestjs/microservices'
 
-import { ChatsListResponse, IChatCreateResponse, IChatService } from '@app/types/Chat'
+import { ChatsListResponse, IChatCreateResponse, IChatService, IAddUserToChatResponse } from '@app/types/Chat'
 import { ServiceResponse } from '@app/types/Service'
 
 import * as DTO from '../dto'
 import { ChatService } from '../services/chat.service'
 
 @Controller()
-export class ChatController implements Pick<IChatService, 'createChat' | 'getChatsByUserId'> {
+export class ChatController implements Pick<IChatService, 'createChat' | 'getChatsByUserId' | 'addUserToChat'> {
   @Inject(ChatService)
   private readonly chatService: ChatService
 
@@ -23,6 +23,12 @@ export class ChatController implements Pick<IChatService, 'createChat' | 'getCha
     @Payload() payload: DTO.GetChatsByUserIdRequestDto,
   ): ServiceResponse<ChatsListResponse> {
     const response = await this.chatService.getChatsByUserId(payload)
+    return response
+  }
+
+  @MessagePattern('addUserToChat')
+  public async addUserToChat(@Payload() payload: DTO.AddUserToChatRpcDto): ServiceResponse<IAddUserToChatResponse> {
+    const response = await this.chatService.addUserToChat(payload)
     return response
   }
 }

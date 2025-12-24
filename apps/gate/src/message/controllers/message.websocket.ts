@@ -138,7 +138,33 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
           const participantSockets = this.userSockets.get(participantId)
           if (participantSockets) {
             participantSockets.forEach((socketId) => {
-              this.server.to(socketId).emit('newMessage', response.data.message)
+              const socket = this.server.sockets.sockets.get(socketId)
+              if (socket) {
+                socket.emit('newMessage', response.data.message)
+                this.logger.debug({
+                  '[handleCreateMessage]': {
+                    message: 'Sent newMessage to participant',
+                    participantId,
+                    socketId,
+                    chatId: data.chatId,
+                  },
+                })
+              } else {
+                this.logger.warn({
+                  '[handleCreateMessage]': {
+                    message: 'Socket not found for participant',
+                    participantId,
+                    socketId,
+                  },
+                })
+              }
+            })
+          } else {
+            this.logger.debug({
+              '[handleCreateMessage]': {
+                message: 'No sockets found for participant',
+                participantId,
+              },
             })
           }
         }

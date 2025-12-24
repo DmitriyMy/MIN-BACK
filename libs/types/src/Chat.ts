@@ -31,12 +31,18 @@ export interface IGetChatsByUserIdRequest extends PaginationRequest {
   userId: UserId
 }
 
+export interface IAddUserToChatRequest {
+  chatId: ChatId
+  userId: UserId // ID пользователя, которого добавляем
+}
+
 /**
  * Response: Chat
  */
 export type IChatCreateResponse = Response<{ chat: IChatDB }>
 export type SingleChatResponse = Response<{ chat: IChatDB }>
 export type ChatsListResponse = MultipleResponse<IChatDB>
+export type IAddUserToChatResponse = Response<{ success: boolean }>
 
 /**
  * Services
@@ -50,6 +56,10 @@ export abstract class IChatService {
   }
 
   getChatsByUserId(_request: IGetChatsByUserIdRequest): ServiceResponse<ChatsListResponse> {
+    throw new NotImplementedException()
+  }
+
+  addUserToChat(_request: IAddUserToChatRequest): ServiceResponse<IAddUserToChatResponse> {
     throw new NotImplementedException()
   }
 }

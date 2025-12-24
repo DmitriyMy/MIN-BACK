@@ -17,6 +17,14 @@ export const commonError = {
     status: HttpStatus.NOT_FOUND,
     error: ['Chat not found'],
   },
+  USER_ALREADY_IN_CHAT: {
+    status: HttpStatus.CONFLICT,
+    error: ['User is already a participant in this chat'],
+  },
+  PRIVATE_CHAT_FULL: {
+    status: HttpStatus.BAD_REQUEST,
+    error: ['Private chat cannot have more than 2 participants'],
+  },
   UNEXPECTED_ERROR: {
     status: 500,
     error: ['Unexpected error happened'],
