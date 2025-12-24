@@ -1,12 +1,19 @@
 import { HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm'
-import { DataSource, Repository } from 'typeorm'
+import { DataSource, In, Repository } from 'typeorm'
 import { instanceToPlain, plainToInstance } from 'class-transformer'
 
 import { MessageStatus } from '@app/constants/message'
 import { Chat, ChatParticipant } from '@app/entitiesPG'
-import { IChatCreateResponse, IChatDB, IChatService } from '@app/types/Chat'
+import {
+  ChatsListResponse,
+  IChatCreateResponse,
+  IChatDB,
+  IChatService,
+  IGetChatsByUserIdRequest,
+} from '@app/types/Chat'
 import { ServiceResponse } from '@app/types/Service'
+import { getOffset } from '@app/utils/pagination'
 import { dataSourceName } from '../../config/postgresql.config'
 import * as DTO from '../dto'
 
@@ -28,6 +35,7 @@ export class ChatService implements IChatService {
 
     // Используем транзакцию для атомарности операций
     const result = await this.dataSource.transaction(async (manager) => {
+      // 1. Создать запись в таблице chats
       // Для приватного чата senderId = creator (создатель чата является отправителем)
       const chat = manager.create(Chat, {
         creator: params.creator,
@@ -40,7 +48,9 @@ export class ChatService implements IChatService {
       const savedChat = await manager.save(chat)
       this.logger.debug({ '[createChat]': { savedChat } })
 
+      // 2. Создать участников чата в таблице chat_participants
       // Для приватного чата участник: creator (создатель чата)
+      // TODO: В будущем, когда будет добавлена логика выбора собеседника, нужно будет добавлять второго участника
       const participants = [
         manager.create(ChatParticipant, {
           chatId: savedChat.chatId,
@@ -68,6 +78,50 @@ export class ChatService implements IChatService {
 
     this.logger.debug({ '[createChat]': { result } })
     return result
+  }
+
+  public async getChatsByUserId(params: IGetChatsByUserIdRequest): ServiceResponse<ChatsListResponse> {
+    this.logger.debug({ '[getChatsByUserId]': { params } })
+
+    const { userId, page, limit } = params
+    const offset = getOffset(page, limit)
+
+    // Получаем все chatId, где участвует пользователь
+    const participantChatIds = await this.chatParticipantRepository.find({
+      where: { userId },
+      select: ['chatId'],
+    })
+
+    const chatIds = participantChatIds.map((p) => p.chatId)
+
+    if (chatIds.length === 0) {
+      return {
+        data: { items: [], count: 0 },
+        status: HttpStatus.OK,
+      }
+    }
+
+    // Получаем чаты с пагинацией
+    const [chats, totalCount] = await this.chatRepository.findAndCount({
+      where: {
+        chatId: In(chatIds),
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+      take: limit,
+      skip: offset,
+    })
+
+    this.logger.debug({ '[getChatsByUserId]': { chatsCount: chats.length, totalCount } })
+
+    return {
+      data: {
+        items: ChatService.serialize(chats) as IChatDB[],
+        count: totalCount,
+      },
+      status: HttpStatus.OK,
+    }
   }
 
   private static serialize(chat: Chat): IChatDB
