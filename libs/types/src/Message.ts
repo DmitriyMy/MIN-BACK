@@ -51,6 +51,11 @@ export interface IMessageCreateRequest {
   message: string
 }
 
+export interface IGetChatParticipantsRequest {
+  chatId: ChatId
+  userId: UserId // Обязательное поле для проверки доступа
+}
+
 export interface CreateMessageSuccessResponse extends ISuccessResponse {
   message: string
 }
@@ -87,6 +92,10 @@ export abstract class IMessageService {
   }
 
   createMessage(_request: IMessageCreateRequest): ServiceResponse<IMessageCreateResponse> {
+    throw new NotImplementedException()
+  }
+
+  getChatParticipants(_request: IGetChatParticipantsRequest): ServiceResponse<Response<{ participants: UserId[] }>> {
     throw new NotImplementedException()
   }
 }

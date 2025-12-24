@@ -7,6 +7,7 @@ import { MessageStatus } from '@app/constants/message'
 import { ChatParticipant, Messages } from '@app/entitiesPG'
 import { commonError } from '@app/errors'
 import {
+  IGetChatParticipantsRequest,
   IGetMessageRequest,
   IGetMessagesByChatIdRequest,
   IMessageCreateResponse,
@@ -20,7 +21,8 @@ import {
   SingleMessageResponse,
 } from '@app/types/Message'
 
-import { ServiceResponse } from '@app/types/Service'
+import { ServiceResponse, Response } from '@app/types/Service'
+import { UserId } from '@app/types/User'
 import { getOffset } from '@app/utils/pagination'
 import { dataSourceName } from '../../config/postgresql.config'
 import * as DTO from '../dto'
@@ -200,6 +202,43 @@ export class MessageService implements IMessageService {
 
     return {
       data: { message: MessageService.serialize(updatedMessage) },
+      status: HttpStatus.OK,
+    }
+  }
+
+  public async getChatParticipants(
+    params: IGetChatParticipantsRequest,
+  ): ServiceResponse<Response<{ participants: UserId[] }>> {
+    this.logger.debug({ '[getChatParticipants]': { params } })
+
+    const { chatId, userId } = params
+
+    // Проверяем, что пользователь является участником чата
+    const participant = await this.chatParticipantRepository.findOne({
+      where: {
+        chatId,
+        userId,
+      },
+    })
+
+    if (!participant) {
+      this.logger.warn({ '[getChatParticipants]': { error: 'User is not a participant', chatId, userId } })
+      throw new NotFoundException(commonError.CHAT_NOT_FOUND)
+    }
+
+    const participants = await this.chatParticipantRepository.find({
+      where: {
+        chatId,
+      },
+      select: ['userId'],
+    })
+
+    const userIds = participants.map((p) => p.userId)
+
+    this.logger.debug({ '[getChatParticipants]': { participantsCount: userIds.length } })
+
+    return {
+      data: { participants: userIds },
       status: HttpStatus.OK,
     }
   }
