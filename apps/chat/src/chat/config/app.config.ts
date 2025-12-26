@@ -13,5 +13,3 @@ export const appConfig = registerAs(
     loggerMinLevel: process.env.LOGGER_MIN_LEVEL,
   }),
 )
-
-

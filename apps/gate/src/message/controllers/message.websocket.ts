@@ -111,63 +111,16 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
         return
       }
 
-      // Отправляем ответ отправителю
-      client.emit('createMessage:response', response)
+      // Отправляем новое сообщение всем подписанным на чат (включая отправителя) через room
+      const roomName = `chat:${data.chatId}`
+      this.server.to(roomName).emit('newMessage', response.data.message)
 
-      // Получаем участников чата
-      const participantsRequest: IGetChatParticipantsRequest = {
-        chatId: data.chatId,
-        userId: user.userId,
-      }
-      const participantsResponse = await this.messageService.getChatParticipants(participantsRequest)
-
-      // Проверяем, что ответ успешный (имеет data)
-      if (!('data' in participantsResponse)) {
-        this.logger.warn({ '[handleCreateMessage]': { error: 'Failed to get participants', chatId: data.chatId } })
-        // Если пользователь не является участником чата, это уже обработано в сервисе через NotFoundException
-        return
-      }
-
-      const participants = participantsResponse.data.participants
-
-      this.logger.debug({ '[handleCreateMessage]': { participants, message: response.data.message } })
-
-      // Отправляем новое сообщение всем подключенным участникам чата (кроме отправителя)
-      participants.forEach((participantId: UserId) => {
-        if (participantId !== user.userId) {
-          const participantSockets = this.userSockets.get(participantId)
-          if (participantSockets) {
-            participantSockets.forEach((socketId) => {
-              const socket = this.server.sockets.sockets.get(socketId)
-              if (socket) {
-                socket.emit('newMessage', response.data.message)
-                this.logger.debug({
-                  '[handleCreateMessage]': {
-                    message: 'Sent newMessage to participant',
-                    participantId,
-                    socketId,
-                    chatId: data.chatId,
-                  },
-                })
-              } else {
-                this.logger.warn({
-                  '[handleCreateMessage]': {
-                    message: 'Socket not found for participant',
-                    participantId,
-                    socketId,
-                  },
-                })
-              }
-            })
-          } else {
-            this.logger.debug({
-              '[handleCreateMessage]': {
-                message: 'No sockets found for participant',
-                participantId,
-              },
-            })
-          }
-        }
+      this.logger.debug({
+        '[handleCreateMessage]': {
+          message: 'Sent newMessage to chat room',
+          chatId: data.chatId,
+          roomName,
+        },
       })
     } catch (error) {
       this.logger.error({ '[handleCreateMessage]': { error: error as Error } })
@@ -278,5 +231,89 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
         client.emit('error', { message: commonError.INTERNAL_SERVER_ERROR })
       }
     }
+  }
+
+  @SubscribeMessage('subscribeToChat')
+  async handleSubscribeToChat(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: { chatId: string },
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleSubscribeToChat]': { user, data } })
+
+    if (!data?.chatId) {
+      client.emit('error', { message: 'chatId is required' })
+      return
+    }
+
+    try {
+      // Проверяем, что пользователь является участником чата
+      const participantsRequest: IGetChatParticipantsRequest = {
+        chatId: data.chatId,
+        userId: user.userId,
+      }
+      const participantsResponse = await this.messageService.getChatParticipants(participantsRequest)
+
+      // Проверяем, что ответ успешный (имеет data)
+      if (!('data' in participantsResponse)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+        return
+      }
+
+      // Присоединяемся к комнате чата
+      const roomName = `chat:${data.chatId}`
+      client.join(roomName)
+
+      this.logger.debug({
+        '[handleSubscribeToChat]': {
+          message: 'User subscribed to chat',
+          userId: user.userId,
+          chatId: data.chatId,
+          roomName,
+          socketId: client.id,
+        },
+      })
+
+      client.emit('subscribeToChat:response', { chatId: data.chatId, success: true })
+    } catch (error) {
+      this.logger.error({ '[handleSubscribeToChat]': { error: error as Error } })
+
+      if (error instanceof NotFoundException || (error instanceof HttpException && error.getStatus() === 404)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+      } else if (error instanceof ForbiddenException || (error instanceof HttpException && error.getStatus() === 403)) {
+        client.emit('error', { message: commonError.DONT_ACCESS })
+      } else {
+        client.emit('error', { message: commonError.INTERNAL_SERVER_ERROR })
+      }
+    }
+  }
+
+  @SubscribeMessage('unsubscribeFromChat')
+  async handleUnsubscribeFromChat(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: { chatId: string },
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleUnsubscribeFromChat]': { user, data } })
+
+    if (!data?.chatId) {
+      client.emit('error', { message: 'chatId is required' })
+      return
+    }
+
+    const roomName = `chat:${data.chatId}`
+    client.leave(roomName)
+
+    this.logger.debug({
+      '[handleUnsubscribeFromChat]': {
+        message: 'User unsubscribed from chat',
+        userId: user.userId,
+        chatId: data.chatId,
+        roomName,
+        socketId: client.id,
+      },
+    })
+
+    client.emit('unsubscribeFromChat:response', { chatId: data.chatId, success: true })
   }
 }

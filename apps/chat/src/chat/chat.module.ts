@@ -19,4 +19,3 @@ import { dataSourceName } from '../config/postgresql.config'
   exports: [ChatService],
 })
 export class ChatModule {}
-

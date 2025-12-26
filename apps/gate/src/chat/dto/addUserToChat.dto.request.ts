@@ -22,4 +22,3 @@ export class AddUserToChatDtoRequest {
   @IsUUID()
   userId: string
 }
-
