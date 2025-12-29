@@ -22,4 +22,3 @@ export const getPostgresqlConfig = (): PostgresqlConfig => ({
 
 export const postgresqlConfig = registerAs(dataSourceName, () => getPostgresqlConfig())
 
-
