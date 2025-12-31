@@ -316,4 +316,62 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
 
     client.emit('unsubscribeFromChat:response', { chatId: data.chatId, success: true })
   }
+
+  @SubscribeMessage('getChatParticipants')
+  async handleGetChatParticipants(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: { chatId: string; userId: string },
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleGetChatParticipants]': { user, data } })
+
+    if (!data?.chatId) {
+      client.emit('getChatParticipants:response', {
+        status: 400,
+        error: 'chatId is required',
+      })
+      return
+    }
+
+    try {
+      const participantsRequest: IGetChatParticipantsRequest = {
+        chatId: data.chatId,
+        userId: user.userId,
+      }
+      const participantsResponse = await this.messageService.getChatParticipants(participantsRequest)
+
+      // Проверяем, что ответ успешный (имеет data)
+      if (!('data' in participantsResponse)) {
+        client.emit('getChatParticipants:response', {
+          status: 404,
+          error: commonError.CHAT_NOT_FOUND,
+        })
+        return
+      }
+
+      client.emit('getChatParticipants:response', {
+        status: 200,
+        data: participantsResponse.data,
+      })
+    } catch (error) {
+      this.logger.error({ '[handleGetChatParticipants]': { error: error as Error } })
+
+      if (error instanceof NotFoundException || (error instanceof HttpException && error.getStatus() === 404)) {
+        client.emit('getChatParticipants:response', {
+          status: 404,
+          error: commonError.CHAT_NOT_FOUND,
+        })
+      } else if (error instanceof ForbiddenException || (error instanceof HttpException && error.getStatus() === 403)) {
+        client.emit('getChatParticipants:response', {
+          status: 403,
+          error: commonError.DONT_ACCESS,
+        })
+      } else {
+        client.emit('getChatParticipants:response', {
+          status: 500,
+          error: commonError.INTERNAL_SERVER_ERROR,
+        })
+      }
+    }
+  }
 }

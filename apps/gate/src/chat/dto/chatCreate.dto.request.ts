@@ -25,3 +25,5 @@ export class ChatCreateDtoRequest implements Omit<IChatCreateRequest, 'creator'>
   @IsString()
   message?: string
 }
+
+

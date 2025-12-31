@@ -5,6 +5,7 @@ export enum CallEvent {
   REJECT_CALL = 'reject-call',
   VPN_READY = 'vpn-ready', // Клиент готов к установке VPN
   HANGUP = 'hangup',
+  WEBRTC_SIGNAL = 'webrtc-signal', // WebRTC сигналы (offer/answer/ice-candidate) для P2P соединения
   // Server to Client events
   CALL_INITIATED = 'call-initiated',
   INCOMING_CALL = 'incoming-call',

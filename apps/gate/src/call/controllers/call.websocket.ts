@@ -1,4 +1,6 @@
 import { Inject, Logger, UseGuards } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { JwtService } from '@nestjs/jwt'
 import {
   ConnectedSocket,
   MessageBody,
@@ -12,8 +14,11 @@ import { Server, Socket } from 'socket.io'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CallEvent } from '@app/constants/call'
+import { ChatType } from '@app/constants/chat'
 import { commonError } from '@app/errors'
 import { CallId, CallStatus, IInitiateCallResponse, IVpnConnectionConfig } from '@app/types/Call'
+import { IChatService } from '@app/types/Chat'
+import { IMessageService } from '@app/types/Message'
 import { IUserDB, IUserService, UserId } from '@app/types/User'
 import { isErrorServiceResponse } from '@app/utils/service'
 import { JwtAuthGuard, WsUser } from '../../auth/utils'
@@ -57,15 +62,181 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   @Inject(IUserService)
   private readonly userService: IUserService
 
+  @Inject(IChatService)
+  private readonly chatService: IChatService
+
+  @Inject(IMessageService)
+  private readonly messageService: IMessageService
+
   @Inject(VpnConfigService)
   private readonly vpnConfigService: VpnConfigService
 
+  @Inject(JwtService)
+  private readonly jwtService: JwtService
+
+  @Inject(ConfigService)
+  private readonly configService: ConfigService
+
   private static readonly CALL_NOT_FOUND_MESSAGE = 'Call not found'
 
-  handleConnection(client: Socket & { user?: IUserDB }) {
+  /**
+   * Проверяет, есть ли у двух пользователей общий персональный чат (ровно 2 участника)
+   */
+  private async hasCommonPersonalChat(userId1: UserId, userId2: UserId): Promise<boolean> {
+    try {
+      // Получаем список чатов первого пользователя
+      const user1ChatsResponse = await this.chatService.getChatsByUserId({
+        userId: userId1,
+        page: 1,
+        limit: 100, // Получаем достаточно чатов для проверки
+      })
+
+      if (isErrorServiceResponse(user1ChatsResponse) || !user1ChatsResponse.data?.items) {
+        this.logger.warn({
+          '[hasCommonPersonalChat]': { error: 'Failed to get chats for user1', userId1 },
+        })
+        return false
+      }
+
+      const user1Chats = user1ChatsResponse.data.items
+
+      // Проверяем каждый чат первого пользователя
+      for (const chat of user1Chats) {
+        // Проверяем, что это персональный чат
+        if (chat.type !== ChatType.PRIVATE) {
+          continue
+        }
+
+        // Получаем участников чата
+        const participantsResponse = await this.messageService.getChatParticipants({
+          chatId: chat.chatId,
+          userId: userId1,
+        })
+
+        if (isErrorServiceResponse(participantsResponse) || !participantsResponse.data?.participants) {
+          continue
+        }
+
+        const participants = participantsResponse.data.participants
+
+        // Проверяем, что чат персональный (ровно 2 участника) и второй пользователь в нем
+        if (participants.length === 2 && participants.includes(userId2)) {
+          this.logger.debug({
+            '[hasCommonPersonalChat]': {
+              message: 'Found common personal chat',
+              userId1,
+              userId2,
+              chatId: chat.chatId,
+            },
+          })
+          return true
+        }
+      }
+
+      this.logger.debug({
+        '[hasCommonPersonalChat]': {
+          message: 'No common personal chat found',
+          userId1,
+          userId2,
+        },
+      })
+      return false
+    } catch (error) {
+      this.logger.error({
+        '[hasCommonPersonalChat]': {
+          error: error instanceof Error ? error.message : String(error),
+          userId1,
+          userId2,
+        },
+      })
+      return false
+    }
+  }
+
+  /**
+   * Получает сокет по ID из namespace
+   * Поддерживает разные структуры Socket.IO
+   */
+  private getSocketById(socketId: string): Socket | null {
+    try {
+      // Вариант 1: this.server.sockets - это Map напрямую
+      if (this.server.sockets && typeof (this.server.sockets as Map<string, Socket>).get === 'function') {
+        const socket = (this.server.sockets as Map<string, Socket>).get(socketId)
+        if (socket) return socket
+      }
+
+      // Вариант 2: this.server.sockets.sockets - это Map
+      if ((this.server.sockets as any)?.sockets && typeof (this.server.sockets as any).sockets.get === 'function') {
+        const socket = (this.server.sockets as any).sockets.get(socketId)
+        if (socket) return socket
+      }
+
+      return null
+    } catch (error) {
+      this.logger.error({
+        '[getSocketById]': {
+          error: error instanceof Error ? error.message : String(error),
+          socketId,
+        },
+      })
+      return null
+    }
+  }
+
+  async handleConnection(client: Socket & { user?: IUserDB }) {
+    // Если пользователь не установлен guard'ом, пытаемся аутентифицировать вручную
+    if (!client.user) {
+      this.logger.debug({
+        '[handleConnection]': {
+          message: 'User not set by guard, attempting manual authentication',
+          clientId: client.id,
+          hasAuth: !!client.handshake.auth,
+          authKeys: Object.keys(client.handshake.auth || {}),
+        },
+      })
+
+      const user = await JwtAuthGuard.authenticateWebSocketConnection(
+        client,
+        this.jwtService,
+        this.userService,
+        this.configService,
+        this.logger,
+      )
+
+      if (!user) {
+        this.logger.warn({
+          '[handleConnection]': {
+            error: 'Authentication failed',
+            clientId: client.id,
+            hasAuth: !!client.handshake.auth,
+            authKeys: Object.keys(client.handshake.auth || {}),
+          },
+        })
+        client.disconnect(true)
+        return
+      }
+
+      client.user = user
+      client.userId = user.userId
+
+      this.logger.debug({
+        '[handleConnection]': {
+          message: 'User authenticated manually',
+          clientId: client.id,
+          userId: user.userId,
+        },
+      })
+    }
+
     const userId = client.user?.userId
     if (!userId) {
-      this.logger.warn({ '[handleConnection]': { error: 'No user in connection', clientId: client.id } })
+      this.logger.warn({
+        '[handleConnection]': {
+          error: 'No user in connection after authentication',
+          clientId: client.id,
+        },
+      })
+      client.disconnect(true)
       return
     }
 
@@ -78,6 +249,29 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
     this.logger.debug({
       '[handleConnection]': { clientId: client.id, userId, totalSockets: this.userSockets.get(userId)!.size },
+    })
+
+    // Проверяем, есть ли ожидающие входящие звонки для этого пользователя
+    // и отправляем уведомления, если пользователь был офлайн при создании звонка
+    this.activeCalls.forEach((callSession, callId) => {
+      if (
+        callSession.calleeId === userId &&
+        callSession.status === CallStatus.initiating &&
+        !callSession.calleeSocketId
+      ) {
+        // Есть звонок, который был создан пока пользователь был офлайн
+        const incomingCallData = {
+          callId,
+          callerId: callSession.callerId,
+          calleeId: callSession.calleeId,
+        }
+        client.emit(CallEvent.INCOMING_CALL, incomingCallData)
+        callSession.calleeSocketId = client.id
+        callSession.status = CallStatus.ringing
+        this.logger.debug({
+          '[handleConnection]': { message: 'Delivered pending incoming call', callId, userId },
+        })
+      }
     })
   }
 
@@ -112,83 +306,145 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     @MessageBody() data: DTO.InitiateCallDtoRequest,
     @WsUser() user: IUserDB,
   ) {
-    this.logger.debug({ '[handleInitiateCall]': { user: user.userId, data } })
-
-    const { calleeId } = data
-    const callerId = user.userId
-
-    // Проверяем, что пользователь не звонит сам себе
-    if (callerId === calleeId) {
-      client.emit(CallEvent.CALL_ERROR, { message: 'Cannot call yourself' })
-      return
-    }
-
-    // Проверяем существование вызываемого пользователя
     try {
-      const userResponse = await this.userService.getUser({ userId: calleeId })
-      if (isErrorServiceResponse(userResponse)) {
-        this.logger.warn({ '[handleInitiateCall]': { error: 'User not found', calleeId } })
-        client.emit(CallEvent.CALL_ERROR, { message: 'User not found' })
+      this.logger.debug({ '[handleInitiateCall]': { user: user.userId, data } })
+
+      const { calleeId } = data
+      const callerId = user.userId
+
+      // Проверяем, что пользователь не звонит сам себе
+      if (callerId === calleeId) {
+        client.emit(CallEvent.CALL_ERROR, { message: 'Cannot call yourself' })
         return
       }
-    } catch (error) {
-      this.logger.error({ '[handleInitiateCall]': { error: error as Error } })
-      client.emit(CallEvent.CALL_ERROR, { message: commonError.INTERNAL_SERVER_ERROR })
-      return
-    }
 
-    // Проверяем, что вызываемый пользователь онлайн
-    const calleeSockets = this.userSockets.get(calleeId)
-    if (!calleeSockets || calleeSockets.size === 0) {
-      this.logger.warn({ '[handleInitiateCall]': { error: 'User is offline', calleeId } })
-      client.emit(CallEvent.CALL_ERROR, { message: 'User is offline' })
-      return
-    }
-
-    // Создаем новый звонок
-    const callId = uuidv4()
-    const callSession: CallSession = {
-      callId,
-      callerId,
-      calleeId,
-      status: CallStatus.initiating,
-      callerSocketId: client.id,
-    }
-
-    this.activeCalls.set(callId, callSession)
-
-    const response: IInitiateCallResponse = {
-      callId,
-      callerId,
-      calleeId,
-    }
-
-    // Отправляем ответ инициатору
-    client.emit(CallEvent.CALL_INITIATED, response)
-
-    // Отправляем уведомление вызываемому пользователю на все его сокеты
-    const incomingCallData = {
-      callId,
-      callerId,
-      calleeId,
-    }
-
-    let calleeSocketFound = false
-    calleeSockets.forEach((socketId) => {
-      const socket = this.server.sockets.sockets.get(socketId)
-      if (socket) {
-        socket.emit(CallEvent.INCOMING_CALL, incomingCallData)
-        if (!calleeSocketFound) {
-          callSession.calleeSocketId = socketId
-          calleeSocketFound = true
+      // Проверяем существование вызываемого пользователя
+      try {
+        const userResponse = await this.userService.getUser({ userId: calleeId })
+        if (isErrorServiceResponse(userResponse)) {
+          this.logger.warn({ '[handleInitiateCall]': { error: 'User not found', calleeId } })
+          client.emit(CallEvent.CALL_ERROR, { message: 'User not found' })
+          return
         }
+      } catch (error) {
+        this.logger.error({ '[handleInitiateCall]': { error: error as Error } })
+        client.emit(CallEvent.CALL_ERROR, { message: commonError.INTERNAL_SERVER_ERROR })
+        return
       }
-    })
 
-    // Обновляем статус звонка
-    callSession.status = CallStatus.ringing
+      // Проверяем, что у пользователей есть общий персональный чат
+      const hasCommonChat = await this.hasCommonPersonalChat(callerId, calleeId)
+      if (!hasCommonChat) {
+        this.logger.warn({
+          '[handleInitiateCall]': {
+            error: 'No common personal chat found',
+            callerId,
+            calleeId,
+          },
+        })
+        client.emit(CallEvent.CALL_ERROR, {
+          message: 'You can only call users with whom you have a personal chat',
+        })
+        return
+      }
 
-    this.logger.debug({ '[handleInitiateCall]': { callId, response } })
+      // Создаем новый звонок
+      const callId = uuidv4()
+      const callSession: CallSession = {
+        callId,
+        callerId,
+        calleeId,
+        status: CallStatus.initiating,
+        callerSocketId: client.id,
+      }
+
+      this.activeCalls.set(callId, callSession)
+
+      const response: IInitiateCallResponse = {
+        callId,
+        callerId,
+        calleeId,
+      }
+
+      // Отправляем ответ инициатору
+      client.emit(CallEvent.CALL_INITIATED, response)
+
+      // Отправляем уведомление вызываемому пользователю
+      const incomingCallData = {
+        callId,
+        callerId,
+        calleeId,
+      }
+
+      const calleeSockets = this.userSockets.get(calleeId)
+      this.logger.debug({
+        '[handleInitiateCall]': {
+          calleeId,
+          hasCalleeSockets: !!calleeSockets,
+          socketCount: calleeSockets?.size || 0,
+          allUserSockets: Array.from(this.userSockets.keys()),
+        },
+      })
+
+      let calleeSocketFound = false
+
+      // Отправляем уведомление через /call namespace, если пользователь подключен
+      if (calleeSockets && calleeSockets.size > 0) {
+        calleeSockets.forEach((socketId) => {
+          const socket = this.getSocketById(socketId)
+          if (socket) {
+            this.logger.debug({
+              '[handleInitiateCall]': { message: 'Sending incoming-call to socket', socketId, calleeId },
+            })
+            socket.emit(CallEvent.INCOMING_CALL, incomingCallData)
+            if (!calleeSocketFound) {
+              callSession.calleeSocketId = socketId
+              calleeSocketFound = true
+            }
+          } else {
+            // Если сокет не найден, используем альтернативный способ отправки через room
+            this.logger.debug({
+              '[handleInitiateCall]': {
+                message: 'Socket not found, using server.to() as fallback',
+                socketId,
+                calleeId,
+              },
+            })
+            this.server.to(socketId).emit(CallEvent.INCOMING_CALL, incomingCallData)
+            if (!calleeSocketFound) {
+              callSession.calleeSocketId = socketId
+              calleeSocketFound = true
+            }
+          }
+        })
+        this.logger.debug({
+          '[handleInitiateCall]': {
+            message: 'Incoming call notification sent via /call namespace',
+            calleeId,
+            socketCount: calleeSockets.size,
+          },
+        })
+      }
+
+      // Если пользователь не подключен к /call namespace, звонок будет доставлен
+      // автоматически при его подключении (см. handleConnection)
+
+      // Обновляем статус звонка
+      callSession.status = CallStatus.ringing
+
+      this.logger.debug({ '[handleInitiateCall]': { callId, response } })
+    } catch (error) {
+      this.logger.error({
+        '[handleInitiateCall]': {
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, {
+        message: error instanceof Error ? error.message : commonError.INTERNAL_SERVER_ERROR,
+      })
+    }
   }
 
   @SubscribeMessage(CallEvent.ACCEPT_CALL)
@@ -211,6 +467,22 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       return
     }
 
+    // Проверяем, что у пользователей есть общий чат (для безопасности)
+    const hasCommonChat = await this.hasCommonPersonalChat(callSession.callerId, callSession.calleeId)
+    if (!hasCommonChat) {
+      this.logger.warn({
+        '[handleAcceptCall]': {
+          error: 'No common personal chat found',
+          callerId: callSession.callerId,
+          calleeId: callSession.calleeId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, {
+        message: 'You can only accept calls from users with whom you have a personal chat',
+      })
+      return
+    }
+
     // Генерируем VPN конфигурации для обоих участников
     const callerVpnConfig = this.vpnConfigService.generateVpnConfig(data.callId, callSession.callerId, true)
     const calleeVpnConfig = this.vpnConfigService.generateVpnConfig(data.callId, callSession.calleeId, false)
@@ -225,7 +497,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     const callerSockets = this.userSockets.get(callSession.callerId)
     if (callerSockets && callerSockets.size > 0) {
       callerSockets.forEach((socketId) => {
-        const socket = this.server.sockets.sockets.get(socketId)
+        const socket = this.getSocketById(socketId)
         if (socket) {
           socket.emit(CallEvent.CALL_ACCEPTED, { callId: data.callId })
           socket.emit(CallEvent.VPN_CONFIG_RECEIVED, callerVpnConfig)
@@ -265,7 +537,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
     if (targetSockets && targetSockets.size > 0) {
       targetSockets.forEach((socketId) => {
-        const socket = this.server.sockets.sockets.get(socketId)
+        const socket = this.getSocketById(socketId)
         if (socket) {
           socket.emit(CallEvent.VPN_CONNECTED, {
             callId: data.callId,
@@ -310,7 +582,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
     if (targetSockets && targetSockets.size > 0) {
       targetSockets.forEach((socketId) => {
-        const socket = this.server.sockets.sockets.get(socketId)
+        const socket = this.getSocketById(socketId)
         if (socket) {
           socket.emit(CallEvent.CALL_REJECTED, { callId: data.callId })
         }
@@ -333,6 +605,113 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
     const callSession = this.activeCalls.get(data.callId)
     if (!callSession) {
+      this.logger.warn({ '[handleHangup]': { error: 'Call not found', callId: data.callId, userId: user.userId } })
+      client.emit(CallEvent.CALL_ERROR, { message: CallWebSocketGateway.CALL_NOT_FOUND_MESSAGE })
+      return
+    }
+
+    // Проверяем, что пользователь является участником звонка
+    const NOT_AUTHORIZED_MESSAGE = 'Not authorized for this call'
+    if (callSession.callerId !== user.userId && callSession.calleeId !== user.userId) {
+      this.logger.warn({
+        '[handleHangup]': {
+          error: 'Not authorized',
+          callId: data.callId,
+          userId: user.userId,
+          callerId: callSession.callerId,
+          calleeId: callSession.calleeId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: NOT_AUTHORIZED_MESSAGE })
+      return
+    }
+
+    // Определяем другого участника
+    const targetUserId = callSession.callerId === user.userId ? callSession.calleeId : callSession.callerId
+    const targetSockets = this.userSockets.get(targetUserId)
+
+    this.logger.debug({
+      '[handleHangup]': {
+        callId: data.callId,
+        hangupBy: user.userId,
+        targetUserId,
+        hasTargetSockets: !!targetSockets,
+        targetSocketCount: targetSockets?.size || 0,
+      },
+    })
+
+    // Отправляем уведомление другому участнику
+    if (targetSockets && targetSockets.size > 0) {
+      let sentCount = 0
+      targetSockets.forEach((socketId) => {
+        const socket = this.getSocketById(socketId)
+        if (socket) {
+          socket.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
+          sentCount++
+          this.logger.debug({
+            '[handleHangup]': {
+              message: 'Hangup notification sent to target user',
+              socketId,
+              targetUserId,
+            },
+          })
+        } else {
+          this.logger.warn({
+            '[handleHangup]': {
+              message: 'Target socket not found',
+              socketId,
+              targetUserId,
+            },
+          })
+        }
+      })
+      this.logger.debug({
+        '[handleHangup]': {
+          message: 'Hangup notifications sent',
+          targetUserId,
+          sentCount,
+          totalSockets: targetSockets.size,
+        },
+      })
+    } else {
+      this.logger.warn({
+        '[handleHangup]': {
+          message: 'Target user has no active sockets',
+          targetUserId,
+        },
+      })
+    }
+
+    // Обновляем статус и удаляем звонок
+    callSession.status = CallStatus.ended
+    this.activeCalls.delete(data.callId)
+
+    // Отправляем подтверждение инициатору hangup
+    client.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
+
+    this.logger.debug({
+      '[handleHangup]': {
+        message: 'Call ended',
+        callId: data.callId,
+        hangupBy: user.userId,
+      },
+    })
+  }
+
+  /**
+   * Обработка WebRTC сигналов для P2P соединения
+   * Ретранслирует сигналы (offer/answer/ice-candidate) между участниками звонка
+   */
+  @SubscribeMessage(CallEvent.WEBRTC_SIGNAL)
+  handleWebRTCSignal(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: DTO.WebRTCSignalDtoRequest,
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleWebRTCSignal]': { user: user.userId, callId: data.callId, type: data.type } })
+
+    const callSession = this.activeCalls.get(data.callId)
+    if (!callSession) {
       client.emit(CallEvent.CALL_ERROR, { message: CallWebSocketGateway.CALL_NOT_FOUND_MESSAGE })
       return
     }
@@ -344,23 +723,45 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       return
     }
 
-    // Отправляем уведомление другому участнику
+    // Определяем получателя сигнала (другой участник звонка)
     const targetUserId = callSession.callerId === user.userId ? callSession.calleeId : callSession.callerId
     const targetSockets = this.userSockets.get(targetUserId)
 
     if (targetSockets && targetSockets.size > 0) {
+      // Ретранслируем сигнал другому участнику через /call namespace
       targetSockets.forEach((socketId) => {
-        const socket = this.server.sockets.sockets.get(socketId)
+        const socket = this.getSocketById(socketId)
         if (socket) {
-          socket.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
+          socket.emit(CallEvent.WEBRTC_SIGNAL, {
+            callId: data.callId,
+            type: data.type,
+            sdp: data.sdp,
+            candidate: data.candidate,
+          })
         }
+      })
+      this.logger.debug({
+        '[handleWebRTCSignal]': {
+          message: 'Signal sent via /call namespace',
+          callId: data.callId,
+          targetUserId,
+          signalType: data.type,
+        },
+      })
+    } else {
+      // Пользователь не подключен к /call namespace
+      // WebRTC сигналы требуют активного подключения к /call namespace
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          message: 'Target user not connected to /call namespace',
+          callId: data.callId,
+          targetUserId,
+          signalType: data.type,
+        },
       })
     }
 
-    callSession.status = CallStatus.ended
-    this.activeCalls.delete(data.callId)
-
-    client.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
+    this.logger.debug({ '[handleWebRTCSignal]': { callId: data.callId, userId: user.userId, signalType: data.type } })
   }
 
   /**
@@ -379,7 +780,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
         if (targetSockets && targetSockets.size > 0) {
           targetSockets.forEach((targetSocketId) => {
-            const socket = this.server.sockets.sockets.get(targetSocketId)
+            const socket = this.getSocketById(targetSocketId)
             if (socket) {
               socket.emit(CallEvent.CALL_HANGUP, { callId })
             }
@@ -398,4 +799,3 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
   }
 }
-
