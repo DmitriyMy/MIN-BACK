@@ -1,4 +1,5 @@
 import { Body, Controller, Inject, Logger, Post, VERSION_NEUTRAL } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 
 import {
   ApiBadRequestResponse,
@@ -18,6 +19,11 @@ import { getData } from '@app/utils/service'
 import * as DTO from '../dto'
 import { TokenService } from '../services/token.service'
 import { Public } from '../utils/auth.guards'
+import {
+  AUTH_THROTTLE_CONFIG,
+  PASSWORD_RESTORE_THROTTLE_CONFIG,
+  SIGNUP_THROTTLE_CONFIG,
+} from '../../utils/throttler.config'
 
 @ApiTags('AuthController')
 @Controller({ version: VERSION_NEUTRAL, path: 'auth' })
@@ -31,6 +37,12 @@ export class AuthController {
   private readonly tokenService: TokenService
 
   @Public()
+  @Throttle({
+    default: {
+      limit: SIGNUP_THROTTLE_CONFIG.limit,
+      ttl: SIGNUP_THROTTLE_CONFIG.ttl,
+    },
+  })
   @Post('signUp')
   @ApiOperation({ summary: 'Sign up user' })
   @ApiBody({ type: DTO.SignUpDtoRequest })
@@ -47,6 +59,12 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({
+    default: {
+      limit: AUTH_THROTTLE_CONFIG.limit,
+      ttl: AUTH_THROTTLE_CONFIG.ttl,
+    },
+  })
   @Post('signIn')
   @ApiOperation({ summary: 'Sign in user' })
   @ApiBody({ type: DTO.SignInDtoRequest })
@@ -65,6 +83,12 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({
+    default: {
+      limit: PASSWORD_RESTORE_THROTTLE_CONFIG.limit,
+      ttl: PASSWORD_RESTORE_THROTTLE_CONFIG.ttl,
+    },
+  })
   @Post('password/restore')
   @ApiOperation({ summary: 'Password recovery' })
   @ApiBody({ type: DTO.RestorePasswordDtoRequest })

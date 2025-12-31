@@ -22,11 +22,12 @@ import {
 } from '@app/types/Message'
 import { IUserDB, UserId } from '@app/types/User'
 import { JwtAuthGuard, WsUser } from '../../auth/utils'
+import { getCorsOrigin } from '../../utils/cors.utils'
 
 @WebSocketGateway({
   namespace: '/message',
   cors: {
-    origin: process.env.CORS_ORIGIN ?? '*',
+    origin: getCorsOrigin(),
     credentials: true,
   },
 })

@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, ValidateNested } from 'class-validator'
+import { IsString, IsEnum, IsOptional, ValidateNested, IsNumber, Min } from 'class-validator'
 import { Type } from 'class-transformer'
 
 export enum WebRTCSignalType {
@@ -43,6 +43,12 @@ export class WebRTCSignalDtoRequest {
   @ValidateNested()
   @Type(() => WebRTCCandidateDto)
   candidate?: WebRTCCandidateDto
+
+  // Защита от replay атак
+  @IsNumber()
+  @Min(0)
+  timestamp!: number // Временная метка создания сигнала
+
+  @IsString()
+  nonce!: string // Уникальный идентификатор для защиты от replay
 }
-
-

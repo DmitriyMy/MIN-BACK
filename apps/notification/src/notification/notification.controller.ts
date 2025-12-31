@@ -18,9 +18,10 @@ export class NotificationController implements INotificationService {
   public async sendRegistrationEmail(
     @Payload() payload: DTO.SendRegistrationEmailDtoRequest,
   ): ServiceResponse<SuccessNotificationResponse> {
-    this.logger.debug({ '[sendRegistrationEmail]': { payload } })
+    // ИСПРАВЛЕНИЕ: Не логируем payload, так как он содержит пароль
+    this.logger.debug({ '[sendRegistrationEmail]': { email: payload.email } })
     const response = await this.notificationService.sendRegistrationEmail(payload)
-    this.logger.debug({ '[sendRegistrationEmail]': { response } })
+    this.logger.debug({ '[sendRegistrationEmail]': { status: response.status } })
     return response
   }
 
@@ -28,9 +29,10 @@ export class NotificationController implements INotificationService {
   public async sendRestorePasswordEmail(
     @Payload() payload: DTO.SendRestorePasswordEmailDtoRequest,
   ): ServiceResponse<SuccessNotificationResponse> {
-    this.logger.debug({ '[sendRestorePasswordEmail]': { payload } })
+    // ИСПРАВЛЕНИЕ: Не логируем payload, так как он содержит пароль
+    this.logger.debug({ '[sendRestorePasswordEmail]': { email: payload.email } })
     const response = await this.notificationService.sendRestorePasswordEmail(payload)
-    this.logger.debug({ '[sendRestorePasswordEmail]': { response } })
+    this.logger.debug({ '[sendRestorePasswordEmail]': { status: response.status } })
     return response
   }
 

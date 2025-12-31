@@ -13,11 +13,12 @@ import { Server, Socket } from 'socket.io'
 import { commonError } from '@app/errors'
 import { IGetUserRequest, IUpdateUserRequest, IUserDB, IUserService, UserId } from '@app/types/User'
 import { JwtAuthGuard, WsUser } from '../../auth/utils'
+import { getCorsOrigin } from '../../utils/cors.utils'
 
 @WebSocketGateway({
   namespace: '/user',
   cors: {
-    origin: process.env.CORS_ORIGIN ?? '*',
+    origin: getCorsOrigin(),
     credentials: true,
   },
 })

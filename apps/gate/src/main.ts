@@ -6,6 +6,7 @@ import { HttpExceptionFilter, PinoLoggerService } from '@app/infrastructure'
 import { AppModule } from './app.module'
 import { setupSwagger } from './helpers/swagger-builder'
 import { SocketIoAdapter } from './utilsWs/socketIO.adapter'
+import { getCorsOrigin } from './utils/cors.utils'
 
 async function bootstrap() {
   const { GATE_APP_PORT, SWAGGER_ENABLED } = process.env
@@ -19,8 +20,8 @@ async function bootstrap() {
   const logger = app.get(PinoLoggerService)
   app.useLogger(logger)
 
-  // Настройка CORS - поддерживает несколько origins через запятую
-  const corsOrigin = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()) : true
+  // Настройка CORS - строгие правила для production, гибкие для development
+  const corsOrigin = getCorsOrigin()
 
   app.enableCors({
     origin: corsOrigin,

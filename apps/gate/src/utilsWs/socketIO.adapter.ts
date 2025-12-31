@@ -1,6 +1,7 @@
 import { INestApplicationContext } from '@nestjs/common'
 import { IoAdapter } from '@nestjs/platform-socket.io'
 import { Server, ServerOptions } from 'socket.io'
+import { getCorsOrigin } from '../utils/cors.utils'
 
 export class SocketIoAdapter extends IoAdapter {
   constructor(
@@ -12,12 +13,15 @@ export class SocketIoAdapter extends IoAdapter {
   }
 
   createIOServer(port: number, options?: ServerOptions): Server {
-    let origin: string | string[] | boolean = '*'
+    // Используем утилиту для получения CORS origin с учетом окружения
+    let origin: string | string[] | boolean
 
     if (this.corsOrigin) {
+      // Если origin передан в конструктор, используем его
       origin = Array.isArray(this.corsOrigin) ? this.corsOrigin : [this.corsOrigin]
-    } else if (process.env.CORS_ORIGIN) {
-      origin = process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    } else {
+      // Иначе используем утилиту, которая учитывает NODE_ENV
+      origin = getCorsOrigin()
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return

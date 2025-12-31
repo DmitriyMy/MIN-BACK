@@ -27,7 +27,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, AuthStrategy.jwt) {
       const { userId } = tokenPayload.user
 
       if (!userId) {
-        this.logger.error({ '[validate] ERROR': { error: 'No userId in token payload', tokenPayload } })
+        // ИСПРАВЛЕНИЕ: Не логируем tokenPayload, так как это чувствительные данные
+        this.logger.error({ '[validate] ERROR': { error: 'No userId in token payload' } })
         throw new HttpException('Invalid token: missing userId', 401)
       }
 
@@ -48,7 +49,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, AuthStrategy.jwt) {
 
       return user
     } catch (err) {
-      this.logger.error({ '[validate]': { error: err, tokenPayload } })
+      // ИСПРАВЛЕНИЕ: Не логируем tokenPayload, так как это чувствительные данные
+      this.logger.error({ '[validate]': { error: err instanceof Error ? err.message : String(err) } })
       if (err instanceof HttpException) {
         throw err
       }

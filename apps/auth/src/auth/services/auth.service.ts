@@ -33,13 +33,16 @@ export class AuthService implements IAuthService {
   private readonly notificationService: INotificationService
 
   public async signUpUser(params: DTO.SignUpUserRequestDto): ServiceResponse<SignUpUserResponse> {
-    this.logger.debug({ '[signUpUser]': { params } })
-
+    // ИСПРАВЛЕНИЕ: Не логируем params, так как он может содержать пароль
     const { email, phone } = params
+    this.logger.debug({ '[signUpUser]': { email, phone } })
 
     const foundUser = await this.userRepository.findOne({ where: [{ email }, { phone }] })
 
-    this.logger.debug({ '[signUpUser]': { foundUser } })
+    // ИСПРАВЛЕНИЕ: Не логируем полный объект user, так как он содержит пароль
+    this.logger.debug({
+      '[signUpUser]': { foundUser: foundUser ? { userId: foundUser.userId, email: foundUser.email } : null },
+    })
 
     if (foundUser && foundUser.isVerifiedEmail) {
       return userError.USER_ALREADY_EXIST
@@ -54,17 +57,20 @@ export class AuthService implements IAuthService {
     await user.save()
     await user.reload()
 
-    this.logger.debug({ '[signUpUser]': { updatedUser: user } })
+    // ИСПРАВЛЕНИЕ: Не логируем полный объект user, так как он содержит пароль
+    this.logger.debug({ '[signUpUser]': { userId: user.userId, email: user.email } })
 
     return { data: { email: user.email }, status: HttpStatus.CREATED }
   }
 
   public async signInUser(params: DTO.SignInUserRequestDto): ServiceResponse<SingleUserResponse> {
-    this.logger.debug({ '[signInUser]': { params } })
+    // ИСПРАВЛЕНИЕ: Не логируем params, так как он содержит пароль
+    this.logger.debug({ '[signInUser]': { email: params.email } })
 
     const user = await this.readUserByEmail(params)
 
-    this.logger.debug({ '[signInUser]': { user } })
+    // ИСПРАВЛЕНИЕ: Не логируем полный объект user, так как он содержит пароль
+    this.logger.debug({ '[signInUser]': { user: user ? { userId: user.userId, email: user.email } : null } })
 
     if (!user) {
       return userError.USER_NOT_FOUND
@@ -78,7 +84,8 @@ export class AuthService implements IAuthService {
     if (user.newPassword) {
       isNewPasswordValid = await bcrypt.compare(password, user.newPassword)
       if (isNewPasswordValid) {
-        user.password = password
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Хешируем пароль перед сохранением
+        user.password = await bcrypt.hash(password, 10)
         user.newPassword = ''
         await user.save()
         await user.reload()
@@ -103,11 +110,13 @@ export class AuthService implements IAuthService {
   }
 
   public async restorePassword(params: DTO.RestorePasswordRequestDto): ServiceResponse<EmptyResponse> {
-    this.logger.debug({ '[restorePassword]': { params } })
+    // ИСПРАВЛЕНИЕ: Не логируем params полностью, только безопасные поля
+    this.logger.debug({ '[restorePassword]': { email: params.email } })
 
     const user = await this.userRepository.findOneBy(params)
 
-    this.logger.debug({ '[restorePassword]': { user } })
+    // ИСПРАВЛЕНИЕ: Не логируем полный объект user, так как он содержит пароль
+    this.logger.debug({ '[restorePassword]': { user: user ? { userId: user.userId, email: user.email } : null } })
 
     if (!user) {
       return userError.USER_NOT_FOUND
@@ -139,7 +148,8 @@ export class AuthService implements IAuthService {
   ): Promise<{ hashedPassword: string }> {
     const password = AuthService.getRandomPassword()
 
-    this.logger.debug({ '[password]': { password } })
+    // ИСПРАВЛЕНИЕ: Не логируем пароль в открытом виде
+    this.logger.debug({ '[sendLoginInformationToEmail]': { userId: user.userId, passwordLength: password.length } })
 
     const hashedPassword = await bcrypt.hash(password)
 

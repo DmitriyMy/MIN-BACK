@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt'
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import * as Joi from 'joi'
 
 import { EnvironmentType, LoggerLevel } from '@app/constants/common'
@@ -17,6 +18,7 @@ import { MessageModule } from './message/message.module'
 import { UserRpcModule } from './user/user-rpc.module'
 import { UserModule } from './user/user.module'
 import { JsonBodyMiddleware } from './utils/json-body.middleware'
+import { getThrottlerConfig } from './utils/throttler.config'
 
 @Module({
   imports: [
@@ -39,6 +41,18 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
         // JWT
         JWT_AUTH_EXPIRE: Joi.string().required(),
         JWT_AUTH_SECRET: Joi.string().required(),
+        // Call Rate Limiting
+        CALL_RATE_LIMIT_PER_MINUTE: Joi.number().optional().default(3),
+        CALL_RATE_LIMIT_TO_USER_PER_MINUTE: Joi.number().optional().default(3),
+        CALL_MAX_ACTIVE_CALLS: Joi.number().optional().default(1),
+        CALL_REJECTED_COOLDOWN_SECONDS: Joi.number().optional().default(30),
+        // Call Timeouts
+        CALL_TIMEOUT_INITIATING_SECONDS: Joi.number().optional().default(30),
+        CALL_TIMEOUT_RINGING_SECONDS: Joi.number().optional().default(60),
+        CALL_TIMEOUT_CONNECTING_SECONDS: Joi.number().optional().default(120),
+        CALL_TIMEOUT_ACTIVE_MINUTES: Joi.number().optional().default(60),
+        // WebRTC Signal Security
+        CALL_WEBRTC_SIGNAL_MAX_AGE_SECONDS: Joi.number().optional().default(30),
         // MINIO
         // MINIO_ENDPOINT: Joi.string().required(),
         // MINIO_PORT: Joi.number().required(),
@@ -61,6 +75,8 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
     RpcModule.register({ name: IUserService, queueName: USER_QUEUE }),
     TraceIdHttpModule,
     LoggingModule,
+    // Rate limiting - защита от брутфорс атак и DoS
+    ThrottlerModule.forRoot(getThrottlerConfig()),
     UserRpcModule,
     AuthModule,
     UserModule,
@@ -72,6 +88,10 @@ import { JsonBodyMiddleware } from './utils/json-body.middleware'
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard, // Глобальный rate limiting guard
     },
     {
       provide: APP_INTERCEPTOR,

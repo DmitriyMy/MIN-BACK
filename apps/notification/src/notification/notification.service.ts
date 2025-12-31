@@ -16,7 +16,8 @@ export class NotificationService {
   public async sendRegistrationEmail(
     params: DTO.SendRegistrationEmailDtoRequest,
   ): ServiceResponse<SuccessNotificationResponse> {
-    this.logger.debug({ '[sendRegistrationEmail]': { params } })
+    // ИСПРАВЛЕНИЕ: Не логируем params, так как он содержит пароль
+    this.logger.debug({ '[sendRegistrationEmail]': { email: params.email } })
     const { email, password, emailVerificationCode } = params
     const result = await this.mailerService.sendMail({
       to: email,
@@ -36,8 +37,9 @@ export class NotificationService {
   public async sendRestorePasswordEmail(
     params: DTO.SendRestorePasswordEmailDtoRequest,
   ): ServiceResponse<SuccessNotificationResponse> {
-    this.logger.debug({ '[sendRestorePasswordEmail]': { params } })
+    // ИСПРАВЛЕНИЕ: Не логируем params, так как он содержит пароль
     const { email, password, emailVerificationCode } = params
+    this.logger.debug({ '[sendRestorePasswordEmail]': { email } })
     const result = await this.mailerService.sendMail({
       to: email,
       subject: NotificationSubject.PASSWORD_RESTORE,

@@ -17,11 +17,13 @@ export class TokenService {
   private readonly authService: IAuthService
 
   public async validateUser(params: ISignInUserRequest) {
-    this.logger.debug({ '[validate]': { params } })
+    // ИСПРАВЛЕНИЕ: Не логируем params, так как он содержит пароль
+    this.logger.debug({ '[validate]': { email: params.email } })
 
     const validateUserResponse = await this.authService.signInUser(params)
 
-    this.logger.debug({ '[validate]': { validateUserResponse } })
+    // ИСПРАВЛЕНИЕ: Не логируем полный ответ, так как он может содержать чувствительные данные
+    this.logger.debug({ '[validate]': { status: validateUserResponse.status } })
 
     if (isErrorServiceResponse(validateUserResponse)) {
       const { status, error } = validateUserResponse
@@ -40,7 +42,8 @@ export class TokenService {
 
     const token = this.jwtService.sign(tokenPayload)
 
-    this.logger.debug({ '[getToken]': { token } })
+    // ИСПРАВЛЕНИЕ: Не логируем токен, так как это чувствительные данные
+    this.logger.debug({ '[getToken]': { userId: user.userId, tokenLength: token.length } })
 
     return token
   }

@@ -219,7 +219,8 @@ export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
       const { userId } = tokenPayload.user
 
       if (!userId) {
-        logger.error({ '[authenticateWebSocketConnection]': { error: 'No userId in token payload', tokenPayload } })
+        // ИСПРАВЛЕНИЕ: Не логируем tokenPayload, так как это чувствительные данные
+        logger.error({ '[authenticateWebSocketConnection]': { error: 'No userId in token payload' } })
         return null
       }
 
@@ -334,6 +335,7 @@ export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
       })
 
       const tokenPayload = this.jwtService.verify<TokenPayload>(token, { secret })
+      // ИСПРАВЛЕНИЕ: Не логируем tokenPayload полностью, только безопасные поля
       this.logger.debug({
         '[validateWebSocketToken]': {
           tokenVerified: true,
@@ -344,7 +346,8 @@ export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
 
       const { userId } = tokenPayload.user
       if (!userId) {
-        this.logger.error({ '[validateWebSocketToken]': { error: 'No userId in token payload', tokenPayload } })
+        // ИСПРАВЛЕНИЕ: Не логируем tokenPayload, так как это чувствительные данные
+        this.logger.error({ '[validateWebSocketToken]': { error: 'No userId in token payload' } })
         throw new WsException('Invalid token: missing userId')
       }
 

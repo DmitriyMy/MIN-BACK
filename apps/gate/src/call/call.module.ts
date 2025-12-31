@@ -8,6 +8,7 @@ import { IMessageService } from '@app/types/Message'
 
 import { AuthModule } from '../auth/auth.module'
 import { CallWebSocketGateway } from './controllers/call.websocket'
+import { CallRateLimiterService } from './services/call-rate-limiter.service'
 import { VpnConfigService } from './services/vpn-config.service'
 
 @Module({
@@ -16,7 +17,7 @@ import { VpnConfigService } from './services/vpn-config.service'
     RpcModule.register({ name: IChatService, queueName: CHAT_QUEUE }),
     RpcModule.register({ name: IMessageService, queueName: MESSAGE_QUEUE }),
   ],
-  providers: [CallWebSocketGateway, VpnConfigService],
+  providers: [CallWebSocketGateway, VpnConfigService, CallRateLimiterService],
 })
 export class CallModule {}
 

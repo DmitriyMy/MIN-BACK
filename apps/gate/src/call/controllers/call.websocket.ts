@@ -1,4 +1,4 @@
-import { Inject, Logger, UseGuards } from '@nestjs/common'
+import { Inject, Logger, OnModuleInit, UseGuards } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import {
@@ -22,7 +22,9 @@ import { IMessageService } from '@app/types/Message'
 import { IUserDB, IUserService, UserId } from '@app/types/User'
 import { isErrorServiceResponse } from '@app/utils/service'
 import { JwtAuthGuard, WsUser } from '../../auth/utils'
+import { CallRateLimiterService } from '../services/call-rate-limiter.service'
 import { VpnConfigService } from '../services/vpn-config.service'
+import { getCorsOrigin } from '../../utils/cors.utils'
 import * as DTO from '../dto'
 
 interface CallSession {
@@ -30,6 +32,8 @@ interface CallSession {
   callerId: UserId
   calleeId: UserId
   status: CallStatus
+  createdAt: number // Timestamp создания звонка
+  lastStatusChange: number // Timestamp последнего изменения статуса
   callerSocketId?: string
   calleeSocketId?: string
   callerVpnConfig?: IVpnConnectionConfig
@@ -39,12 +43,12 @@ interface CallSession {
 @WebSocketGateway({
   namespace: '/call',
   cors: {
-    origin: process.env.CORS_ORIGIN ?? '*',
+    origin: getCorsOrigin(),
     credentials: true,
   },
 })
 @UseGuards(JwtAuthGuard)
-export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
   @WebSocketServer()
   server: Server
 
@@ -53,11 +57,23 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   // Хранилище активных звонков
   private activeCalls = new Map<CallId, CallSession>()
 
+  // Таймеры для таймаутов звонков
+  private callTimers = new Map<CallId, NodeJS.Timeout>()
+
   // Маппинг userId -> Set<socketId> для быстрого поиска сокетов пользователя
   private userSockets = new Map<UserId, Set<string>>()
 
   // Маппинг socketId -> userId
   private socketUsers = new Map<string, UserId>()
+
+  // Настройки таймаутов из переменных окружения
+  private callTimeouts!: Record<CallStatus, number>
+
+  // Защита от replay атак: callId -> Set<nonce> (использованные nonce для каждого звонка)
+  private usedSignalNonces = new Map<CallId, Set<string>>()
+
+  // Максимальный возраст сигнала (в миллисекундах)
+  private readonly SIGNAL_MAX_AGE: number
 
   @Inject(IUserService)
   private readonly userService: IUserService
@@ -71,6 +87,9 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   @Inject(VpnConfigService)
   private readonly vpnConfigService: VpnConfigService
 
+  @Inject(CallRateLimiterService)
+  private readonly rateLimiter: CallRateLimiterService
+
   @Inject(JwtService)
   private readonly jwtService: JwtService
 
@@ -78,6 +97,60 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   private readonly configService: ConfigService
 
   private static readonly CALL_NOT_FOUND_MESSAGE = 'Call not found'
+
+  onModuleInit() {
+    // Загружаем настройки таймаутов из переменных окружения
+    const initiatingTimeout = parseInt(
+      this.configService.get<string>('CALL_TIMEOUT_INITIATING_SECONDS') || '30',
+      10,
+    ) * 1000
+    const ringingTimeout = parseInt(
+      this.configService.get<string>('CALL_TIMEOUT_RINGING_SECONDS') || '60',
+      10,
+    ) * 1000
+    const connectingTimeout = parseInt(
+      this.configService.get<string>('CALL_TIMEOUT_CONNECTING_SECONDS') || '120',
+      10,
+    ) * 1000
+    const activeTimeout = parseInt(
+      this.configService.get<string>('CALL_TIMEOUT_ACTIVE_MINUTES') || '60',
+      10,
+    ) * 60 * 1000
+
+    this.callTimeouts = {
+      [CallStatus.initiating]: initiatingTimeout,
+      [CallStatus.ringing]: ringingTimeout,
+      [CallStatus.connecting]: connectingTimeout,
+      [CallStatus.active]: activeTimeout,
+      [CallStatus.ended]: 0, // Завершенные звонки не имеют таймаута
+      [CallStatus.rejected]: 0, // Отклоненные звонки не имеют таймаута
+      [CallStatus.cancelled]: 0, // Отмененные звонки не имеют таймаута
+    }
+
+    this.logger.debug({
+      '[onModuleInit]': {
+        callTimeouts: {
+          initiating: `${initiatingTimeout / 1000}s`,
+          ringing: `${ringingTimeout / 1000}s`,
+          connecting: `${connectingTimeout / 1000}s`,
+          active: `${activeTimeout / 60000}min`,
+        },
+      },
+    })
+
+    // Периодическая очистка истекших звонков (каждые 5 минут)
+    setInterval(() => this.cleanupExpiredCalls(), 5 * 60 * 1000)
+
+    // Загружаем максимальный возраст сигнала из переменных окружения
+    this.SIGNAL_MAX_AGE =
+      parseInt(this.configService.get<string>('CALL_WEBRTC_SIGNAL_MAX_AGE_SECONDS') || '30', 10) * 1000
+
+    this.logger.debug({
+      '[onModuleInit]': {
+        signalMaxAge: `${this.SIGNAL_MAX_AGE / 1000}s`,
+      },
+    })
+  }
 
   /**
    * Проверяет, есть ли у двух пользователей общий персональный чат (ровно 2 участника)
@@ -318,6 +391,21 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
         return
       }
 
+      // Проверка rate limiting
+      const rateLimitCheck = this.rateLimiter.canInitiateCall(callerId, calleeId)
+      if (!rateLimitCheck.allowed) {
+        this.logger.warn({
+          '[handleInitiateCall]': {
+            reason: 'Rate limit exceeded',
+            callerId,
+            calleeId,
+            message: rateLimitCheck.reason,
+          },
+        })
+        client.emit(CallEvent.CALL_ERROR, { message: rateLimitCheck.reason })
+        return
+      }
+
       // Проверяем существование вызываемого пользователя
       try {
         const userResponse = await this.userService.getUser({ userId: calleeId })
@@ -350,15 +438,21 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
       // Создаем новый звонок
       const callId = uuidv4()
+      const now = Date.now()
       const callSession: CallSession = {
         callId,
         callerId,
         calleeId,
         status: CallStatus.initiating,
+        createdAt: now,
+        lastStatusChange: now,
         callerSocketId: client.id,
       }
 
       this.activeCalls.set(callId, callSession)
+
+      // Устанавливаем таймаут для звонка
+      this.setupCallTimeout(callId, callSession)
 
       const response: IInitiateCallResponse = {
         callId,
@@ -431,6 +525,13 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
       // Обновляем статус звонка
       callSession.status = CallStatus.ringing
+      callSession.lastStatusChange = Date.now()
+
+      // Обновляем таймаут для нового статуса
+      this.setupCallTimeout(callId, callSession)
+
+      // Отмечаем начало звонка в rate limiter
+      this.rateLimiter.onCallStarted(callerId)
 
       this.logger.debug({ '[handleInitiateCall]': { callId, response } })
     } catch (error) {
@@ -506,6 +607,10 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
 
     callSession.status = CallStatus.connecting
+    callSession.lastStatusChange = Date.now()
+
+    // Обновляем таймаут для нового статуса
+    this.setupCallTimeout(data.callId, callSession)
 
     this.logger.debug({ '[handleAcceptCall]': { callId: data.callId, vpnConfigsGenerated: true } })
   }
@@ -550,6 +655,10 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     // Если оба участника готовы, обновляем статус
     if (callSession.status === CallStatus.connecting) {
       callSession.status = CallStatus.active
+      callSession.lastStatusChange = Date.now()
+
+      // Обновляем таймаут для активного звонка
+      this.setupCallTimeout(data.callId, callSession)
     }
 
     this.logger.debug({ '[handleVpnReady]': { callId: data.callId, userId: user.userId } })
@@ -590,7 +699,25 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
 
     callSession.status = CallStatus.rejected
+    callSession.lastStatusChange = Date.now()
+
+    // Очищаем таймер
+    this.clearCallTimeout(data.callId)
+
+    // Очищаем использованные nonce для этого звонка
+    this.cleanupUsedSignalNonces(data.callId)
+
+    // Удаляем звонок
     this.activeCalls.delete(data.callId)
+
+    // Устанавливаем cooldown после отклонения звонка
+    if (callSession.calleeId === user.userId) {
+      // Звонок отклонен вызываемым пользователем
+      this.rateLimiter.onCallRejected(callSession.callerId, callSession.calleeId)
+    }
+
+    // Отмечаем завершение звонка в rate limiter
+    this.rateLimiter.onCallEnded(callSession.callerId)
 
     client.emit(CallEvent.CALL_REJECTED, { callId: data.callId })
   }
@@ -682,9 +809,25 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       })
     }
 
-    // Обновляем статус и удаляем звонок
+    // Обновляем статус
     callSession.status = CallStatus.ended
+    callSession.lastStatusChange = Date.now()
+
+    // Очищаем таймер
+    this.clearCallTimeout(data.callId)
+
+    // Очищаем использованные nonce для этого звонка
+    this.cleanupUsedSignalNonces(data.callId)
+
+    // Удаляем звонок
     this.activeCalls.delete(data.callId)
+
+    // Отмечаем завершение звонка в rate limiter
+    this.rateLimiter.onCallEnded(callSession.callerId)
+    // Если звонок завершен вызываемым пользователем, также отмечаем
+    if (callSession.calleeId === user.userId) {
+      this.rateLimiter.onCallEnded(callSession.calleeId)
+    }
 
     // Отправляем подтверждение инициатору hangup
     client.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
@@ -701,6 +844,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   /**
    * Обработка WebRTC сигналов для P2P соединения
    * Ретранслирует сигналы (offer/answer/ice-candidate) между участниками звонка
+   * Защищено от replay атак через nonce и временные метки
    */
   @SubscribeMessage(CallEvent.WEBRTC_SIGNAL)
   handleWebRTCSignal(
@@ -709,6 +853,24 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     @WsUser() user: IUserDB,
   ) {
     this.logger.debug({ '[handleWebRTCSignal]': { user: user.userId, callId: data.callId, type: data.type } })
+
+    // Проверка 1: Валидация временной метки (защита от старых сигналов)
+    const now = Date.now()
+    const signalAge = now - data.timestamp
+
+    if (signalAge > this.SIGNAL_MAX_AGE || signalAge < 0) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Signal timestamp invalid or too old',
+          callId: data.callId,
+          timestamp: data.timestamp,
+          age: signalAge,
+          maxAge: this.SIGNAL_MAX_AGE,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Signal expired or invalid timestamp' })
+      return
+    }
 
     const callSession = this.activeCalls.get(data.callId)
     if (!callSession) {
@@ -723,12 +885,93 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       return
     }
 
+    // Проверка 2: Защита от replay атак (проверка nonce)
+    const usedNonces = this.usedSignalNonces.get(data.callId) || new Set<string>()
+    if (usedNonces.has(data.nonce)) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Replay attack detected - duplicate nonce',
+          callId: data.callId,
+          nonce: data.nonce,
+          userId: user.userId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal - possible replay attack' })
+      return
+    }
+
+    // Проверка 3: Валидация соответствия сигнала состоянию звонка
+    if (data.type === DTO.WebRTCSignalType.OFFER && callSession.status !== CallStatus.ringing) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Unexpected offer signal for current call state',
+          callId: data.callId,
+          status: callSession.status,
+          expectedStatus: CallStatus.ringing,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
+      return
+    }
+
+    if (data.type === DTO.WebRTCSignalType.ANSWER && callSession.status !== CallStatus.connecting) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Unexpected answer signal for current call state',
+          callId: data.callId,
+          status: callSession.status,
+          expectedStatus: CallStatus.connecting,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
+      return
+    }
+
+    // Проверка 4: Валидация наличия необходимых данных
+    if (data.type === DTO.WebRTCSignalType.OFFER && !data.sdp) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Missing SDP in offer signal',
+          callId: data.callId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Missing SDP in offer signal' })
+      return
+    }
+
+    if (data.type === DTO.WebRTCSignalType.ANSWER && !data.sdp) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Missing SDP in answer signal',
+          callId: data.callId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Missing SDP in answer signal' })
+      return
+    }
+
+    if (data.type === DTO.WebRTCSignalType.ICE_CANDIDATE && !data.candidate) {
+      this.logger.warn({
+        '[handleWebRTCSignal]': {
+          error: 'Missing candidate in ICE candidate signal',
+          callId: data.callId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, { message: 'Missing candidate in ICE candidate signal' })
+      return
+    }
+
+    // Регистрируем nonce как использованный
+    usedNonces.add(data.nonce)
+    this.usedSignalNonces.set(data.callId, usedNonces)
+
     // Определяем получателя сигнала (другой участник звонка)
     const targetUserId = callSession.callerId === user.userId ? callSession.calleeId : callSession.callerId
     const targetSockets = this.userSockets.get(targetUserId)
 
     if (targetSockets && targetSockets.size > 0) {
       // Ретранслируем сигнал другому участнику через /call namespace
+      // Передаем все данные включая timestamp и nonce для валидации на клиенте
       targetSockets.forEach((socketId) => {
         const socket = this.getSocketById(socketId)
         if (socket) {
@@ -737,6 +980,8 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
             type: data.type,
             sdp: data.sdp,
             candidate: data.candidate,
+            timestamp: data.timestamp,
+            nonce: data.nonce,
           })
         }
       })
@@ -765,6 +1010,165 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   /**
+   * Устанавливает таймаут для звонка в зависимости от его статуса
+   */
+  private setupCallTimeout(callId: CallId, callSession: CallSession): void {
+    // Очищаем предыдущий таймер, если есть
+    this.clearCallTimeout(callId)
+
+    const timeout = this.callTimeouts[callSession.status]
+
+    // Если таймаут не установлен для этого статуса, не создаем таймер
+    if (!timeout || timeout <= 0) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      this.logger.warn({
+        '[callTimeout]': {
+          callId,
+          status: callSession.status,
+          callerId: callSession.callerId,
+          calleeId: callSession.calleeId,
+          createdAt: new Date(callSession.createdAt).toISOString(),
+          lastStatusChange: new Date(callSession.lastStatusChange).toISOString(),
+          age: Date.now() - callSession.createdAt,
+        },
+      })
+
+      // Завершаем звонок по таймауту
+      this.endCallWithTimeout(callId, callSession)
+    }, timeout)
+
+    this.callTimers.set(callId, timer)
+
+    this.logger.debug({
+      '[setupCallTimeout]': {
+        callId,
+        status: callSession.status,
+        timeout: `${timeout / 1000}s`,
+      },
+    })
+  }
+
+  /**
+   * Очищает таймер для звонка
+   */
+  private clearCallTimeout(callId: CallId): void {
+    const timer = this.callTimers.get(callId)
+    if (timer) {
+      clearTimeout(timer)
+      this.callTimers.delete(callId)
+    }
+  }
+
+  /**
+   * Завершает звонок по таймауту
+   */
+  private endCallWithTimeout(callId: CallId, callSession: CallSession): void {
+    // Уведомляем участников о таймауте
+    const participants = [callSession.callerId, callSession.calleeId]
+
+    participants.forEach((userId) => {
+      const sockets = this.userSockets.get(userId)
+      if (sockets) {
+        sockets.forEach((socketId) => {
+          const socket = this.getSocketById(socketId)
+          if (socket) {
+            socket.emit(CallEvent.CALL_ERROR, {
+              message: 'Call timeout',
+              callId,
+            })
+            socket.emit(CallEvent.CALL_HANGUP, { callId })
+          }
+        })
+      }
+    })
+
+    // Очищаем таймер
+    this.clearCallTimeout(callId)
+
+    // Очищаем использованные nonce для этого звонка
+    this.cleanupUsedSignalNonces(callId)
+
+    // Отмечаем завершение звонка в rate limiter
+    this.rateLimiter.onCallEnded(callSession.callerId)
+    if (callSession.calleeId !== callSession.callerId) {
+      this.rateLimiter.onCallEnded(callSession.calleeId)
+    }
+
+    // Удаляем звонок
+    this.activeCalls.delete(callId)
+
+    this.logger.debug({
+      '[endCallWithTimeout]': {
+        callId,
+        status: callSession.status,
+        callerId: callSession.callerId,
+        calleeId: callSession.calleeId,
+      },
+    })
+  }
+
+  /**
+   * Очищает истекшие звонки
+   */
+  private cleanupExpiredCalls(): void {
+    const now = Date.now()
+    const expiredCalls: CallId[] = []
+
+    this.activeCalls.forEach((callSession, callId) => {
+      const timeout = this.callTimeouts[callSession.status]
+
+      // Проверяем, не истек ли звонок
+      if (timeout > 0) {
+        const timeSinceStatusChange = now - callSession.lastStatusChange
+        if (timeSinceStatusChange > timeout) {
+          expiredCalls.push(callId)
+        }
+      }
+    })
+
+    expiredCalls.forEach((callId) => {
+      const callSession = this.activeCalls.get(callId)
+      if (callSession) {
+        this.logger.warn({
+          '[cleanupExpiredCalls]': {
+            callId,
+            status: callSession.status,
+            createdAt: new Date(callSession.createdAt).toISOString(),
+            lastStatusChange: new Date(callSession.lastStatusChange).toISOString(),
+            age: now - callSession.createdAt,
+          },
+        })
+        this.endCallWithTimeout(callId, callSession)
+      }
+    })
+
+    if (expiredCalls.length > 0) {
+      this.logger.debug({
+        '[cleanupExpiredCalls]': {
+          cleaned: expiredCalls.length,
+          totalCalls: this.activeCalls.size,
+        },
+      })
+    }
+  }
+
+  /**
+   * Очищает использованные nonce для звонка
+   */
+  private cleanupUsedSignalNonces(callId: CallId): void {
+    this.usedSignalNonces.delete(callId)
+    this.logger.debug({
+      '[cleanupUsedSignalNonces]': {
+        callId,
+        message: 'Cleaned up used signal nonces',
+      },
+    })
+  }
+
+  /**
    * Завершает все активные звонки для пользователя при отключении
    */
   private endCallsForUser(userId: UserId, socketId: string): void {
@@ -789,8 +1193,22 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       }
     })
 
-    // Удаляем завершенные звонки
+    // Удаляем завершенные звонки и отмечаем в rate limiter
     callsToEnd.forEach((callId) => {
+      const call = this.activeCalls.get(callId)
+      if (call) {
+        // Очищаем таймер
+        this.clearCallTimeout(callId)
+
+        // Очищаем использованные nonce для этого звонка
+        this.cleanupUsedSignalNonces(callId)
+
+        // Отмечаем завершение звонка в rate limiter
+        this.rateLimiter.onCallEnded(call.callerId)
+        if (call.calleeId !== call.callerId) {
+          this.rateLimiter.onCallEnded(call.calleeId)
+        }
+      }
       this.activeCalls.delete(callId)
     })
 
