@@ -13,6 +13,7 @@ export enum CallEvent {
   VPN_CONFIG_RECEIVED = 'vpn-config-received', // Получена VPN конфигурация
   VPN_CONNECTED = 'vpn-connected', // VPN канал установлен
   CALL_REJECTED = 'call-rejected',
+  CALL_CANCELLED = 'call-cancelled', // Звонок отменен инициатором до принятия
   CALL_HANGUP = 'call-hangup',
   CALL_ERROR = 'call-error',
 }

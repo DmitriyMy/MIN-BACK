@@ -8,10 +8,14 @@ RUN npm install -g pnpm @nestjs/cli
 # Копирование файлов зависимостей
 COPY package*.json ./
 COPY pnpm-lock.yaml* ./
+COPY .pnpmrc* ./
 COPY nest-cli.json tsconfig*.json ./
 
-# Установка зависимостей
-RUN pnpm install
+# Установка зависимостей (офлайн режим - использует локальные пакеты если доступны)
+# В docker-compose node_modules монтируется как volume, поэтому для dev режима
+# зависимости будут доступны через volume mount
+RUN pnpm install --prefer-offline --no-verify-store-integrity || \
+    echo "Warning: Some packages may be missing. Ensure node_modules are installed locally or mounted as volume."
 
 # Копирование исходного кода
 COPY . .

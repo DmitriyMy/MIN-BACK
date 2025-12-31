@@ -156,7 +156,6 @@ export class JwtAuthGuard extends AuthGuard(AuthStrategy.jwt) {
       const user = await this.validateWebSocketToken(token)
 
       client.user = user
-      client.userId = user.userId
 
       this.logger.debug({
         '[handleWebSocket]': {

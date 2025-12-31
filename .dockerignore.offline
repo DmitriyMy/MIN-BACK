@@ -1,0 +1,21 @@
+# .dockerignore для офлайн режима
+# Этот файл используется когда нужно скопировать node_modules в образ
+# Для использования: переименуйте .dockerignore в .dockerignore.original
+# и переименуйте этот файл в .dockerignore
+
+# Исключаем только большие файлы, но НЕ node_modules для офлайн режима
+npm-debug.log
+.next
+dist
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+README.md
+.DS_Store
+*.log
+coverage
+.nyc_output
+
+

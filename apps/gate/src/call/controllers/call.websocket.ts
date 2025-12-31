@@ -38,6 +38,8 @@ interface CallSession {
   calleeSocketId?: string
   callerVpnConfig?: IVpnConnectionConfig
   calleeVpnConfig?: IVpnConnectionConfig
+  callerVpnReady?: boolean // Флаг готовности VPN для инициатора
+  calleeVpnReady?: boolean // Флаг готовности VPN для принимающего
 }
 
 @WebSocketGateway({
@@ -73,7 +75,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   private usedSignalNonces = new Map<CallId, Set<string>>()
 
   // Максимальный возраст сигнала (в миллисекундах)
-  private readonly SIGNAL_MAX_AGE: number
+  private SIGNAL_MAX_AGE!: number
 
   @Inject(IUserService)
   private readonly userService: IUserService
@@ -233,8 +235,8 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
   private getSocketById(socketId: string): Socket | null {
     try {
       // Вариант 1: this.server.sockets - это Map напрямую
-      if (this.server.sockets && typeof (this.server.sockets as Map<string, Socket>).get === 'function') {
-        const socket = (this.server.sockets as Map<string, Socket>).get(socketId)
+      if (this.server.sockets && typeof (this.server.sockets as unknown as Map<string, Socket>).get === 'function') {
+        const socket = (this.server.sockets as unknown as Map<string, Socket>).get(socketId)
         if (socket) return socket
       }
 
@@ -290,7 +292,6 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       }
 
       client.user = user
-      client.userId = user.userId
 
       this.logger.debug({
         '[handleConnection]': {
@@ -319,6 +320,31 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
     this.userSockets.get(userId)!.add(client.id)
     this.socketUsers.set(client.id, userId)
+
+    // Добавляем обработчик для логирования всех входящих сообщений
+    client.onAny((eventName, ...args) => {
+      this.logger.debug({
+        '[incomingMessage]': {
+          eventName,
+          clientId: client.id,
+          userId,
+          argsCount: args.length,
+          firstArgType: args[0] ? typeof args[0] : 'undefined',
+          firstArgKeys: args[0] && typeof args[0] === 'object' ? Object.keys(args[0]) : [],
+        },
+      })
+    })
+
+    // Обработчик ошибок
+    client.on('error', (error) => {
+      this.logger.error({
+        '[socketError]': {
+          error: error instanceof Error ? error.message : String(error),
+          clientId: client.id,
+          userId,
+        },
+      })
+    })
 
     this.logger.debug({
       '[handleConnection]': { clientId: client.id, userId, totalSockets: this.userSockets.get(userId)!.size },
@@ -380,7 +406,16 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     @WsUser() user: IUserDB,
   ) {
     try {
-      this.logger.debug({ '[handleInitiateCall]': { user: user.userId, data } })
+      this.logger.debug({
+        '[handleInitiateCall]': {
+          user: user.userId,
+          data,
+          clientId: client.id,
+          hasData: !!data,
+          dataType: typeof data,
+          dataKeys: data ? Object.keys(data) : [],
+        },
+      })
 
       const { calleeId } = data
       const callerId = user.userId
@@ -554,7 +589,16 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     @MessageBody() data: DTO.AcceptCallDtoRequest,
     @WsUser() user: IUserDB,
   ) {
-    this.logger.debug({ '[handleAcceptCall]': { user: user.userId, callId: data.callId } })
+    this.logger.debug({
+      '[handleAcceptCall]': {
+        user: user.userId,
+        callId: data?.callId,
+        clientId: client.id,
+        hasData: !!data,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : [],
+      },
+    })
 
     const callSession = this.activeCalls.get(data.callId)
     if (!callSession) {
@@ -565,6 +609,22 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     // Проверяем, что пользователь является вызываемым
     if (callSession.calleeId !== user.userId) {
       client.emit(CallEvent.CALL_ERROR, { message: 'Not authorized to accept this call' })
+      return
+    }
+
+    // Проверяем, что звонок в правильном статусе для принятия
+    if (callSession.status !== CallStatus.ringing && callSession.status !== CallStatus.initiating) {
+      this.logger.warn({
+        '[handleAcceptCall]': {
+          error: 'Call is not in ringing or initiating status',
+          callId: data.callId,
+          currentStatus: callSession.status,
+          userId: user.userId,
+        },
+      })
+      client.emit(CallEvent.CALL_ERROR, {
+        message: `Cannot accept call in status: ${callSession.status}`,
+      })
       return
     }
 
@@ -593,18 +653,103 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
 
     // Отправляем VPN конфигурацию вызываемому (принявшему звонок)
     client.emit(CallEvent.VPN_CONFIG_RECEIVED, calleeVpnConfig)
+    this.logger.debug({
+      '[handleAcceptCall]': {
+        message: 'VPN config sent to callee',
+        callId: data.callId,
+        calleeId: callSession.calleeId,
+        clientId: client.id,
+      },
+    })
 
-    // Отправляем VPN конфигурацию инициатору
+    // Отправляем события инициатору
     const callerSockets = this.userSockets.get(callSession.callerId)
+    this.logger.debug({
+      '[handleAcceptCall]': {
+        message: 'Looking for caller sockets',
+        callId: data.callId,
+        callerId: callSession.callerId,
+        hasCallerSockets: !!callerSockets,
+        callerSocketCount: callerSockets?.size || 0,
+        allUserSockets: Array.from(this.userSockets.keys()),
+      },
+    })
+
     if (callerSockets && callerSockets.size > 0) {
+      let sentCount = 0
       callerSockets.forEach((socketId) => {
         const socket = this.getSocketById(socketId)
         if (socket) {
+          // Сначала отправляем CALL_ACCEPTED, затем VPN_CONFIG_RECEIVED
           socket.emit(CallEvent.CALL_ACCEPTED, { callId: data.callId })
           socket.emit(CallEvent.VPN_CONFIG_RECEIVED, callerVpnConfig)
+          sentCount++
+          this.logger.debug({
+            '[handleAcceptCall]': {
+              message: 'Events sent to caller socket',
+              callId: data.callId,
+              callerId: callSession.callerId,
+              socketId,
+              events: [CallEvent.CALL_ACCEPTED, CallEvent.VPN_CONFIG_RECEIVED],
+            },
+          })
+        } else {
+          this.logger.warn({
+            '[handleAcceptCall]': {
+              message: 'Caller socket not found by ID',
+              callId: data.callId,
+              callerId: callSession.callerId,
+              socketId,
+            },
+          })
         }
       })
+      this.logger.debug({
+        '[handleAcceptCall]': {
+          message: 'Events sent to caller',
+          callId: data.callId,
+          callerId: callSession.callerId,
+          sentCount,
+          totalSockets: callerSockets.size,
+        },
+      })
+    } else {
+      this.logger.error({
+        '[handleAcceptCall]': {
+          message: 'Caller has no active sockets to send events',
+          callId: data.callId,
+          callerId: callSession.callerId,
+          allUserSockets: Array.from(this.userSockets.keys()),
+        },
+      })
+      
+      // Отправляем ошибку принимающему, так как инициатор недоступен
+      client.emit(CallEvent.CALL_ERROR, {
+        message: 'Caller is not connected',
+        callId: data.callId,
+      })
+      
+      // Завершаем звонок, так как инициатор недоступен
+      callSession.status = CallStatus.ended
+      callSession.lastStatusChange = Date.now()
+      this.clearCallTimeout(data.callId)
+      this.cleanupUsedSignalNonces(data.callId)
+      this.activeCalls.delete(data.callId)
+      this.rateLimiter.onCallEnded(callSession.callerId)
+      
+      this.logger.warn({
+        '[handleAcceptCall]': {
+          message: 'Call ended because caller is not connected',
+          callId: data.callId,
+          callerId: callSession.callerId,
+        },
+      })
+      return
     }
+
+    // Инициализируем флаги готовности VPN
+    callSession.callerVpnReady = false
+    callSession.calleeVpnReady = false
 
     callSession.status = CallStatus.connecting
     callSession.lastStatusChange = Date.now()
@@ -612,7 +757,26 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     // Обновляем таймаут для нового статуса
     this.setupCallTimeout(data.callId, callSession)
 
-    this.logger.debug({ '[handleAcceptCall]': { callId: data.callId, vpnConfigsGenerated: true } })
+    // Отправляем подтверждение принимающему (после успешной отправки инициатору)
+    client.emit(CallEvent.CALL_ACCEPTED, { callId: data.callId })
+    this.logger.debug({
+      '[handleAcceptCall]': {
+        message: 'Call accepted confirmation sent to callee',
+        callId: data.callId,
+        calleeId: callSession.calleeId,
+      },
+    })
+
+    this.logger.debug({
+      '[handleAcceptCall]': {
+        message: 'Call accepted successfully',
+        callId: data.callId,
+        callerId: callSession.callerId,
+        calleeId: callSession.calleeId,
+        vpnConfigsGenerated: true,
+        status: CallStatus.connecting,
+      },
+    })
   }
 
   @SubscribeMessage(CallEvent.VPN_READY)
@@ -636,6 +800,13 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       return
     }
 
+    // Отмечаем готовность VPN для текущего пользователя
+    if (callSession.callerId === user.userId) {
+      callSession.callerVpnReady = true
+    } else if (callSession.calleeId === user.userId) {
+      callSession.calleeVpnReady = true
+    }
+
     // Отправляем уведомление другому участнику, что VPN готов
     const targetUserId = callSession.callerId === user.userId ? callSession.calleeId : callSession.callerId
     const targetSockets = this.userSockets.get(targetUserId)
@@ -652,16 +823,35 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       })
     }
 
-    // Если оба участника готовы, обновляем статус
-    if (callSession.status === CallStatus.connecting) {
+    // Проверяем, готовы ли оба участника
+    const bothReady = callSession.callerVpnReady && callSession.calleeVpnReady
+
+    this.logger.debug({
+      '[handleVpnReady]': {
+        callId: data.callId,
+        userId: user.userId,
+        callerVpnReady: callSession.callerVpnReady,
+        calleeVpnReady: callSession.calleeVpnReady,
+        bothReady,
+        currentStatus: callSession.status,
+      },
+    })
+
+    // Если оба участника готовы и звонок в статусе connecting, переводим в active
+    if (bothReady && callSession.status === CallStatus.connecting) {
       callSession.status = CallStatus.active
       callSession.lastStatusChange = Date.now()
 
       // Обновляем таймаут для активного звонка
       this.setupCallTimeout(data.callId, callSession)
-    }
 
-    this.logger.debug({ '[handleVpnReady]': { callId: data.callId, userId: user.userId } })
+      this.logger.debug({
+        '[handleVpnReady]': {
+          message: 'Call moved to active status',
+          callId: data.callId,
+        },
+      })
+    }
   }
 
   @SubscribeMessage(CallEvent.REJECT_CALL)
@@ -757,11 +947,24 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     const targetUserId = callSession.callerId === user.userId ? callSession.calleeId : callSession.callerId
     const targetSockets = this.userSockets.get(targetUserId)
 
+    // Определяем, является ли это отменой звонка (инициатор отменяет до принятия)
+    const isCancellation =
+      callSession.callerId === user.userId &&
+      (callSession.status === CallStatus.initiating || callSession.status === CallStatus.ringing)
+
+    // Определяем событие и статус для отправки
+    const eventToEmit = isCancellation ? CallEvent.CALL_CANCELLED : CallEvent.CALL_HANGUP
+    const newStatus = isCancellation ? CallStatus.cancelled : CallStatus.ended
+
     this.logger.debug({
       '[handleHangup]': {
         callId: data.callId,
         hangupBy: user.userId,
         targetUserId,
+        currentStatus: callSession.status,
+        isCancellation,
+        eventToEmit,
+        newStatus,
         hasTargetSockets: !!targetSockets,
         targetSocketCount: targetSockets?.size || 0,
       },
@@ -773,13 +976,14 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       targetSockets.forEach((socketId) => {
         const socket = this.getSocketById(socketId)
         if (socket) {
-          socket.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
+          socket.emit(eventToEmit, { callId: data.callId })
           sentCount++
           this.logger.debug({
             '[handleHangup]': {
-              message: 'Hangup notification sent to target user',
+              message: `${isCancellation ? 'Cancellation' : 'Hangup'} notification sent to target user`,
               socketId,
               targetUserId,
+              event: eventToEmit,
             },
           })
         } else {
@@ -794,7 +998,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       })
       this.logger.debug({
         '[handleHangup]': {
-          message: 'Hangup notifications sent',
+          message: `${isCancellation ? 'Cancellation' : 'Hangup'} notifications sent`,
           targetUserId,
           sentCount,
           totalSockets: targetSockets.size,
@@ -810,7 +1014,7 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
 
     // Обновляем статус
-    callSession.status = CallStatus.ended
+    callSession.status = newStatus
     callSession.lastStatusChange = Date.now()
 
     // Очищаем таймер
@@ -829,14 +1033,15 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       this.rateLimiter.onCallEnded(callSession.calleeId)
     }
 
-    // Отправляем подтверждение инициатору hangup
-    client.emit(CallEvent.CALL_HANGUP, { callId: data.callId })
+    // Отправляем подтверждение инициатору hangup/cancel
+    client.emit(eventToEmit, { callId: data.callId })
 
     this.logger.debug({
       '[handleHangup]': {
-        message: 'Call ended',
+        message: isCancellation ? 'Call cancelled' : 'Call ended',
         callId: data.callId,
         hangupBy: user.userId,
+        status: newStatus,
       },
     })
   }
@@ -852,7 +1057,17 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     @MessageBody() data: DTO.WebRTCSignalDtoRequest,
     @WsUser() user: IUserDB,
   ) {
-    this.logger.debug({ '[handleWebRTCSignal]': { user: user.userId, callId: data.callId, type: data.type } })
+    this.logger.debug({
+      '[handleWebRTCSignal]': {
+        user: user.userId,
+        callId: data.callId,
+        type: data.type,
+        nonce: data.nonce,
+        timestamp: data.timestamp,
+        hasSdp: !!data.sdp,
+        hasCandidate: !!data.candidate,
+      },
+    })
 
     // Проверка 1: Валидация временной метки (защита от старых сигналов)
     const now = Date.now()
@@ -886,45 +1101,96 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
     }
 
     // Проверка 2: Защита от replay атак (проверка nonce)
-    const usedNonces = this.usedSignalNonces.get(data.callId) || new Set<string>()
-    if (usedNonces.has(data.nonce)) {
-      this.logger.warn({
-        '[handleWebRTCSignal]': {
-          error: 'Replay attack detected - duplicate nonce',
-          callId: data.callId,
-          nonce: data.nonce,
-          userId: user.userId,
-        },
-      })
-      client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal - possible replay attack' })
-      return
+    // Для ICE candidates НЕ проверяем nonce, так как они могут легитимно повторяться
+    // Для OFFER и ANSWER проверяем nonce строго
+    if (data.type === DTO.WebRTCSignalType.OFFER || data.type === DTO.WebRTCSignalType.ANSWER) {
+      const usedNonces = this.usedSignalNonces.get(data.callId) || new Set<string>()
+      
+      if (usedNonces.has(data.nonce)) {
+        this.logger.warn({
+          '[handleWebRTCSignal]': {
+            error: 'Replay attack detected - duplicate nonce',
+            callId: data.callId,
+            nonce: data.nonce,
+            signalType: data.type,
+            userId: user.userId,
+            usedNoncesCount: usedNonces.size,
+          },
+        })
+        client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal - possible replay attack' })
+        return
+      }
+      
+      // Регистрируем nonce как использованный для OFFER и ANSWER
+      usedNonces.add(data.nonce)
+      this.usedSignalNonces.set(data.callId, usedNonces)
+    } else if (data.type === DTO.WebRTCSignalType.ICE_CANDIDATE) {
+      // Для ICE candidates не проверяем nonce - они могут легитимно повторяться
+      // Проверяем только timestamp для защиты от очень старых сигналов
+      if (signalAge > this.SIGNAL_MAX_AGE * 3) {
+        this.logger.warn({
+          '[handleWebRTCSignal]': {
+            error: 'ICE candidate signal too old',
+            callId: data.callId,
+            signalAge,
+            maxAge: this.SIGNAL_MAX_AGE * 3,
+            userId: user.userId,
+          },
+        })
+        // Не блокируем, но логируем - ICE candidates могут быть старыми при переподключении
+      }
     }
 
     // Проверка 3: Валидация соответствия сигнала состоянию звонка
-    if (data.type === DTO.WebRTCSignalType.OFFER && callSession.status !== CallStatus.ringing) {
-      this.logger.warn({
-        '[handleWebRTCSignal]': {
-          error: 'Unexpected offer signal for current call state',
-          callId: data.callId,
-          status: callSession.status,
-          expectedStatus: CallStatus.ringing,
-        },
-      })
-      client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
-      return
+    // OFFER может быть отправлен в ringing или connecting (на случай, если клиент отправил после принятия)
+    if (data.type === DTO.WebRTCSignalType.OFFER) {
+      if (callSession.status !== CallStatus.ringing && callSession.status !== CallStatus.connecting) {
+        this.logger.warn({
+          '[handleWebRTCSignal]': {
+            error: 'Unexpected offer signal for current call state',
+            callId: data.callId,
+            status: callSession.status,
+            expectedStatuses: [CallStatus.ringing, CallStatus.connecting],
+          },
+        })
+        client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
+        return
+      }
     }
 
-    if (data.type === DTO.WebRTCSignalType.ANSWER && callSession.status !== CallStatus.connecting) {
-      this.logger.warn({
-        '[handleWebRTCSignal]': {
-          error: 'Unexpected answer signal for current call state',
-          callId: data.callId,
-          status: callSession.status,
-          expectedStatus: CallStatus.connecting,
-        },
-      })
-      client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
-      return
+    // ANSWER может быть отправлен в connecting или active (на случай задержек)
+    if (data.type === DTO.WebRTCSignalType.ANSWER) {
+      if (callSession.status !== CallStatus.connecting && callSession.status !== CallStatus.active) {
+        this.logger.warn({
+          '[handleWebRTCSignal]': {
+            error: 'Unexpected answer signal for current call state',
+            callId: data.callId,
+            status: callSession.status,
+            expectedStatuses: [CallStatus.connecting, CallStatus.active],
+          },
+        })
+        client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
+        return
+      }
+    }
+
+    // ICE_CANDIDATE может быть отправлен в connecting или active (они могут приходить в любое время)
+    if (data.type === DTO.WebRTCSignalType.ICE_CANDIDATE) {
+      if (
+        callSession.status !== CallStatus.connecting &&
+        callSession.status !== CallStatus.active
+      ) {
+        this.logger.warn({
+          '[handleWebRTCSignal]': {
+            error: 'Unexpected ICE candidate signal for current call state',
+            callId: data.callId,
+            status: callSession.status,
+            expectedStatuses: [CallStatus.connecting, CallStatus.active],
+          },
+        })
+        client.emit(CallEvent.CALL_ERROR, { message: 'Invalid signal for current call state' })
+        return
+      }
     }
 
     // Проверка 4: Валидация наличия необходимых данных
@@ -961,9 +1227,8 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
       return
     }
 
-    // Регистрируем nonce как использованный
-    usedNonces.add(data.nonce)
-    this.usedSignalNonces.set(data.callId, usedNonces)
+    // Nonce уже зарегистрирован выше для OFFER и ANSWER
+    // Для ICE_CANDIDATE не регистрируем nonce, так как они могут повторяться
 
     // Определяем получателя сигнала (другой участник звонка)
     const targetUserId = callSession.callerId === user.userId ? callSession.calleeId : callSession.callerId
@@ -1182,11 +1447,17 @@ export class CallWebSocketGateway implements OnGatewayConnection, OnGatewayDisco
         const targetUserId = call.callerId === userId ? call.calleeId : call.callerId
         const targetSockets = this.userSockets.get(targetUserId)
 
+        // Определяем, является ли это отменой звонка (инициатор отключается до принятия)
+        const isCancellation =
+          call.callerId === userId &&
+          (call.status === CallStatus.initiating || call.status === CallStatus.ringing)
+        const eventToEmit = isCancellation ? CallEvent.CALL_CANCELLED : CallEvent.CALL_HANGUP
+
         if (targetSockets && targetSockets.size > 0) {
           targetSockets.forEach((targetSocketId) => {
             const socket = this.getSocketById(targetSocketId)
             if (socket) {
-              socket.emit(CallEvent.CALL_HANGUP, { callId })
+              socket.emit(eventToEmit, { callId })
             }
           })
         }

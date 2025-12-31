@@ -1,4 +1,6 @@
 import { ForbiddenException, HttpException, Inject, Logger, NotFoundException, UseGuards } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { JwtService } from '@nestjs/jwt'
 import {
   ConnectedSocket,
   MessageBody,
@@ -20,7 +22,7 @@ import {
   IMessageUpdateRequest,
   MessageId,
 } from '@app/types/Message'
-import { IUserDB, UserId } from '@app/types/User'
+import { IUserDB, IUserService, UserId } from '@app/types/User'
 import { JwtAuthGuard, WsUser } from '../../auth/utils'
 import { getCorsOrigin } from '../../utils/cors.utils'
 
@@ -41,13 +43,65 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
   @Inject(IMessageService)
   private readonly messageService: IMessageService
 
+  @Inject(JwtService)
+  private readonly jwtService: JwtService
+
+  @Inject(IUserService)
+  private readonly userService: IUserService
+
+  @Inject(ConfigService)
+  private readonly configService: ConfigService
+
   // Маппинг userId -> Set<socketId> для быстрого поиска сокетов пользователя
   private userSockets = new Map<UserId, Set<string>>()
 
   // Маппинг socketId -> userId
   private socketUsers = new Map<string, UserId>()
 
-  handleConnection(client: Socket & { user?: IUserDB }) {
+  async handleConnection(client: Socket & { user?: IUserDB }) {
+    // Если пользователь не установлен guard'ом, пытаемся аутентифицировать вручную
+    if (!client.user) {
+      this.logger.debug({
+        '[handleConnection]': {
+          message: 'User not set by guard, attempting manual authentication',
+          clientId: client.id,
+          hasAuth: !!client.handshake.auth,
+          authKeys: Object.keys(client.handshake.auth || {}),
+        },
+      })
+
+      const user = await JwtAuthGuard.authenticateWebSocketConnection(
+        client,
+        this.jwtService,
+        this.userService,
+        this.configService,
+        this.logger,
+      )
+
+      if (!user) {
+        this.logger.warn({
+          '[handleConnection]': {
+            error: 'Authentication failed',
+            clientId: client.id,
+            hasAuth: !!client.handshake.auth,
+            authKeys: Object.keys(client.handshake.auth || {}),
+          },
+        })
+        client.disconnect(true)
+        return
+      }
+
+      client.user = user
+
+      this.logger.debug({
+        '[handleConnection]': {
+          message: 'User authenticated manually',
+          clientId: client.id,
+          userId: user.userId,
+        },
+      })
+    }
+
     const userId = client.user?.userId
     if (!userId) {
       this.logger.warn({ '[handleConnection]': { error: 'No user in connection', clientId: client.id } })
@@ -84,16 +138,20 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
   @SubscribeMessage('createMessage')
   async handleCreateMessage(
     @ConnectedSocket() client: Socket & { user?: IUserDB },
-    @MessageBody() data: { chatId: string; message: string },
+    @MessageBody() data: { chatId: string; message: string; encrypted?: boolean },
     @WsUser() user: IUserDB,
   ) {
-    this.logger.debug({ '[handleCreateMessage]': { user, data } })
+    this.logger.debug({
+      '[handleCreateMessage]': { user, data: { ...data, message: data.message?.substring(0, 50) + '...' } },
+    })
 
     if (!data?.chatId || !data?.message) {
       client.emit('error', { message: 'chatId and message are required' })
       return
     }
 
+    // For E2E encryption, the message is already encrypted on the client
+    // Server stores it as-is without decrypting
     const requestData: IMessageCreateRequest = {
       chatId: data.chatId,
       message: data.message,
@@ -372,6 +430,270 @@ export class MessageWebSocketGateway implements OnGatewayConnection, OnGatewayDi
           status: 500,
           error: commonError.INTERNAL_SERVER_ERROR,
         })
+      }
+    }
+  }
+
+  /**
+   * Exchange encryption key with chat participants
+   * This allows participants to share encryption keys for E2E encryption
+   */
+  @SubscribeMessage('exchangeEncryptionKey')
+  async handleExchangeEncryptionKey(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: { chatId: string; keyMaterial: string; keyId: string },
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleExchangeEncryptionKey]': { user: user.userId, chatId: data.chatId } })
+
+    if (!data?.chatId || !data?.keyMaterial || !data?.keyId) {
+      client.emit('error', { message: 'chatId, keyMaterial, and keyId are required' })
+      return
+    }
+
+    try {
+      // Verify user is a participant
+      const participantsRequest: IGetChatParticipantsRequest = {
+        chatId: data.chatId,
+        userId: user.userId,
+      }
+      const participantsResponse = await this.messageService.getChatParticipants(participantsRequest)
+
+      if (!('data' in participantsResponse)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+        return
+      }
+
+      const participants = participantsResponse.data.participants
+      const otherParticipants = participants.filter((p) => p !== user.userId)
+
+      // Send key to other participants directly via their sockets
+      // This ensures delivery even if they haven't subscribed to the room yet
+      const roomName = `chat:${data.chatId}`
+
+      // Get room size safely (adapter might not be available in all Socket.IO versions)
+      let roomSize = 0
+      try {
+        if (this.server.sockets?.adapter?.rooms) {
+          const room = this.server.sockets.adapter.rooms.get(roomName)
+          roomSize = room ? room.size : 0
+        }
+      } catch (error) {
+        // If we can't get room size, it's not critical - we'll still send to sockets directly
+        this.logger.debug({
+          '[handleExchangeEncryptionKey]': {
+            message: 'Could not get room size',
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
+      }
+
+      let sentCount = 0
+      const keyPayload = {
+        chatId: data.chatId,
+        keyMaterial: data.keyMaterial,
+        keyId: data.keyId,
+        fromUserId: user.userId,
+      }
+
+      // Send to all sockets of other participants
+      for (const participantId of otherParticipants) {
+        const participantSockets = this.userSockets.get(participantId)
+        if (participantSockets && participantSockets.size > 0) {
+          for (const socketId of participantSockets) {
+            // Safely get socket - sockets structure may vary in Socket.IO versions
+            let socket: Socket | undefined
+            try {
+              if (this.server.sockets?.sockets) {
+                socket = this.server.sockets.sockets.get(socketId)
+              } else if (this.server.sockets instanceof Map) {
+                socket = this.server.sockets.get(socketId)
+              }
+            } catch (error) {
+              this.logger.debug({
+                '[handleExchangeEncryptionKey]': {
+                  message: 'Could not get socket',
+                  socketId,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              })
+            }
+
+            if (socket) {
+              socket.emit('encryptionKeyReceived', keyPayload)
+              sentCount++
+              this.logger.debug({
+                '[handleExchangeEncryptionKey]': {
+                  message: 'Sent encryption key to participant socket',
+                  chatId: data.chatId,
+                  fromUserId: user.userId,
+                  toUserId: participantId,
+                  socketId,
+                  keyId: data.keyId,
+                },
+              })
+            }
+          }
+        }
+      }
+
+      // Also broadcast to room for participants who might join later
+      this.server.to(roomName).emit('encryptionKeyReceived', keyPayload)
+
+      this.logger.debug({
+        '[handleExchangeEncryptionKey]': {
+          message: 'Encryption key sent',
+          chatId: data.chatId,
+          fromUserId: user.userId,
+          keyId: data.keyId,
+          participantsCount: participants.length,
+          otherParticipantsCount: otherParticipants.length,
+          sentToSockets: sentCount,
+          roomName,
+          roomSize,
+        },
+      })
+
+      client.emit('exchangeEncryptionKey:response', { success: true })
+    } catch (error) {
+      this.logger.error({ '[handleExchangeEncryptionKey]': { error: error as Error } })
+
+      if (error instanceof NotFoundException || (error instanceof HttpException && error.getStatus() === 404)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+      } else if (error instanceof ForbiddenException || (error instanceof HttpException && error.getStatus() === 403)) {
+        client.emit('error', { message: commonError.DONT_ACCESS })
+      } else {
+        client.emit('error', { message: commonError.INTERNAL_SERVER_ERROR })
+      }
+    }
+  }
+
+  /**
+   * Request encryption key from chat participants
+   * When a user needs a key for a specific keyId, they can request it
+   */
+  @SubscribeMessage('requestEncryptionKey')
+  async handleRequestEncryptionKey(
+    @ConnectedSocket() client: Socket & { user?: IUserDB },
+    @MessageBody() data: { chatId: string; keyId: string },
+    @WsUser() user: IUserDB,
+  ) {
+    this.logger.debug({ '[handleRequestEncryptionKey]': { user: user.userId, chatId: data.chatId, keyId: data.keyId } })
+
+    if (!data?.chatId || !data?.keyId) {
+      client.emit('error', { message: 'chatId and keyId are required' })
+      return
+    }
+
+    try {
+      // Verify user is a participant
+      const participantsRequest: IGetChatParticipantsRequest = {
+        chatId: data.chatId,
+        userId: user.userId,
+      }
+      const participantsResponse = await this.messageService.getChatParticipants(participantsRequest)
+
+      if (!('data' in participantsResponse)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+        return
+      }
+
+      // Broadcast key request to all participants
+      // Send directly to their sockets AND to the room for reliability
+      const participants = participantsResponse.data.participants
+      const otherParticipants = participants.filter((p) => p !== user.userId)
+      const roomName = `chat:${data.chatId}`
+
+      // Get room size safely (adapter might not be available in all Socket.IO versions)
+      let roomSize = 0
+      try {
+        if (this.server.sockets?.adapter?.rooms) {
+          const room = this.server.sockets.adapter.rooms.get(roomName)
+          roomSize = room ? room.size : 0
+        }
+      } catch (error) {
+        // If we can't get room size, it's not critical - we'll still send to sockets directly
+        this.logger.debug({
+          '[handleRequestEncryptionKey]': {
+            message: 'Could not get room size',
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
+      }
+
+      const requestPayload = {
+        chatId: data.chatId,
+        keyId: data.keyId,
+        requestedBy: user.userId,
+      }
+
+      let sentCount = 0
+      // Send to all sockets of other participants directly
+      for (const participantId of otherParticipants) {
+        const participantSockets = this.userSockets.get(participantId)
+        if (participantSockets && participantSockets.size > 0) {
+          for (const socketId of participantSockets) {
+            // Safely get socket - sockets structure may vary in Socket.IO versions
+            let socket: Socket | undefined
+            try {
+              if (this.server.sockets?.sockets) {
+                socket = this.server.sockets.sockets.get(socketId)
+              } else if (this.server.sockets instanceof Map) {
+                socket = this.server.sockets.get(socketId)
+              }
+            } catch (error) {
+              this.logger.debug({
+                '[handleRequestEncryptionKey]': {
+                  message: 'Could not get socket',
+                  socketId,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              })
+            }
+
+            if (socket) {
+              socket.emit('encryptionKeyRequested', requestPayload)
+              sentCount++
+            }
+          }
+        }
+      }
+
+      // Also broadcast to room for participants who might join later
+      this.server.to(roomName).emit('encryptionKeyRequested', requestPayload)
+
+      this.logger.debug({
+        '[handleRequestEncryptionKey]': {
+          message: 'Encryption key requested',
+          chatId: data.chatId,
+          keyId: data.keyId,
+          requestedBy: user.userId,
+          participantsCount: participants.length,
+          otherParticipantsCount: otherParticipants.length,
+          sentToSockets: sentCount,
+          roomName,
+          roomSize,
+        },
+      })
+
+      client.emit('requestEncryptionKey:response', { success: true })
+    } catch (error) {
+      this.logger.error({
+        '[handleRequestEncryptionKey]': {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          chatId: data?.chatId,
+          keyId: data?.keyId,
+          userId: user?.userId,
+        },
+      })
+
+      if (error instanceof NotFoundException || (error instanceof HttpException && error.getStatus() === 404)) {
+        client.emit('error', { message: commonError.CHAT_NOT_FOUND })
+      } else if (error instanceof ForbiddenException || (error instanceof HttpException && error.getStatus() === 403)) {
+        client.emit('error', { message: commonError.DONT_ACCESS })
+      } else {
+        client.emit('error', { message: commonError.INTERNAL_SERVER_ERROR })
       }
     }
   }

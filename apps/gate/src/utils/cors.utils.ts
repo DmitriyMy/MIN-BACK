@@ -42,3 +42,4 @@ export function getCorsOrigin(): string | string[] | boolean {
   return true
 }
 
+
